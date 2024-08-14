@@ -3,20 +3,28 @@
     "name": "カイポケアシスタント",
     "version": "1.0",
     "description": "カイポケの予実反映作業を自動化する拡張機能",
+    "background": {
+        "service_worker": "background.js"
+    },
     "permissions": [
         "activeTab",
-        "tabs"
+        "scripting"
     ],
     "host_permissions": [
         "https://r.kaipoke.biz/*"
     ],
     "action": {
-      "default_popup": "popup.html"
+        "default_icon": {
+            "16": "icon16.png",
+            "48": "icon48.png",
+            "128": "icon128.png"
+        }
     },
     "content_scripts": [
       {
         "matches": ["https://r.kaipoke.biz/*"],
-        "js": ["content.js"]
+        "js": ["contentScript.js"],
+        "css": ["contentStyle.css"]
       }
     ]
   }
