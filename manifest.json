@@ -24,7 +24,8 @@
       {
         "matches": ["https://r.kaipoke.biz/*"],
         "js": ["contentScript.js"],
-        "css": ["contentStyle.css"]
+        "css": ["contentStyle.css"],
+        "run_at": "document_start"
       }
     ]
   }

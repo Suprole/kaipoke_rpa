@@ -3,6 +3,73 @@ console.log("Current URL:", window.location.href);
 
 let floatingDiv = null;
 
+// 即時実行関数でスクリプトをラップ
+(function() {
+  // ページロード時に実行
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeExtension);
+  } else {
+    initializeExtension();
+  }
+})();
+
+function initializeExtension() {
+  restorePopupState();
+  setupMessageListener();
+}
+
+function setupMessageListener() {
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "showFloatingPopup") {
+      showFloatingPopup();
+      sendResponse({success: true});
+    }
+    return true;
+  });
+}
+
+// ポップアップの状態を保存
+function savePopupState() {
+  if (!floatingDiv) return;
+  
+  const state = {
+    isVisible: floatingDiv.style.display !== 'none',
+    position: {
+      left: floatingDiv.style.left,
+      top: floatingDiv.style.top
+    },
+    users: Array.from(floatingDiv.querySelectorAll('.user-checkbox')).map(cb => ({
+      id: cb.value,
+      name: cb.nextElementSibling.textContent,
+      checked: cb.checked
+    }))
+  };
+  localStorage.setItem('kaipoke-assistant-state', JSON.stringify(state));
+}
+
+// ポップアップの状態を復元
+function restorePopupState() {
+  const savedState = localStorage.getItem('kaipoke-assistant-state');
+  if (savedState) {
+    const state = JSON.parse(savedState);
+    if (state.isVisible) {
+      showFloatingPopup();
+      floatingDiv.style.left = state.position.left;
+      floatingDiv.style.top = state.position.top;
+      if (state.users && state.users.length > 0) {
+        displayUserList(state.users);
+        state.users.forEach(user => {
+          const checkbox = floatingDiv.querySelector(`#user-${user.id}`);
+          if (checkbox) {
+            checkbox.checked = user.checked;
+          }
+        });
+        updateButtonState();
+      }
+    }
+  }
+}
+
 function isTargetPage() {
   return window.location.href.startsWith('https://r.kaipoke.biz/bizhnc/monthlyShiftsList/');
 }
@@ -51,6 +118,7 @@ function showFloatingPopup() {
   const closeButton = floatingDiv.querySelector('#kaipoke-assistant-close');
   closeButton.addEventListener('click', () => {
     floatingDiv.style.display = 'none';
+    savePopupState();
   });
 
   const fetchButton = floatingDiv.querySelector('#fetchUsers');
@@ -63,6 +131,7 @@ function showFloatingPopup() {
   userListDiv.addEventListener('change', updateButtonState);
 
   makeDraggable(floatingDiv);
+  savePopupState();
 }
 
 function makeDraggable(element) {
@@ -85,6 +154,7 @@ function makeDraggable(element) {
 
   document.addEventListener('mouseup', () => {
     isDragging = false;
+    savePopupState();
   });
 }
 
@@ -102,7 +172,7 @@ function fetchUsersFromPage() {
 }
 
 function fetchUserList() {
-  const userListDiv = document.getElementById('userList');
+  const userListDiv = floatingDiv.querySelector('#userList');
   const users = fetchUsersFromPage();
   
   if (users.length === 0) {
@@ -111,6 +181,7 @@ function fetchUserList() {
   }
 
   displayUserList(users);
+  savePopupState();
 }
 
 function displayUserList(users) {
@@ -147,6 +218,8 @@ function displayUserList(users) {
     
     // チェックボックスの状態変更を監視
     userListDiv.addEventListener('change', updateButtonState);
+
+    savePopupState();
   }
   
   // 全選択/全解除の切り替え関数
@@ -161,6 +234,8 @@ function displayUserList(users) {
     
     selectAllButton.textContent = isChecked ? '全解除' : '全選択';
     updateButtonState();
+
+    savePopupState();
   }
   
   // ボタンの状態を更新する関数
@@ -176,4 +251,6 @@ function displayUserList(users) {
     
     const selectAllButton = document.getElementById('selectAll');
     selectAllButton.textContent = (checkboxes.length === checkedBoxes.length) ? '全解除' : '全選択';
+
+    savePopupState();
   }
