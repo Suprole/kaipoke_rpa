@@ -1,0 +1,22 @@
+{
+    "manifest_version": 3,
+    "name": "カイポケアシスタント",
+    "version": "1.0",
+    "description": "カイポケの予実反映作業を自動化する拡張機能",
+    "permissions": [
+        "activeTab",
+        "tabs"
+    ],
+    "host_permissions": [
+        "https://r.kaipoke.biz/*"
+    ],
+    "action": {
+      "default_popup": "popup.html"
+    },
+    "content_scripts": [
+      {
+        "matches": ["https://r.kaipoke.biz/*"],
+        "js": ["content.js"]
+      }
+    ]
+  }
