@@ -23,6 +23,13 @@ function setupMessageListener() {
     if (request.action === "showFloatingPopup") {
       showFloatingPopup();
       sendResponse({success: true});
+    } else if (request.action === "fetchUsers") {
+      if (isTargetPage()) {
+        const users = fetchUsersFromPage();
+        sendResponse({users: users});
+      } else {
+        sendResponse({error: 'notTargetPage'});
+      }
     }
     return true;
   });
@@ -73,21 +80,6 @@ function restorePopupState() {
 function isTargetPage() {
   return window.location.href.startsWith('https://r.kaipoke.biz/bizhnc/monthlyShiftsList/');
 }
-
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "showFloatingPopup") {
-    showFloatingPopup();
-    sendResponse({success: true});
-  } else if (request.action === "fetchUsers") {
-    if (isTargetPage()) {
-      const users = fetchUsersFromPage();
-      sendResponse({users: users});
-    } else {
-      sendResponse({error: 'notTargetPage'});
-    }
-  }
-  return true;
-});
 
 function showFloatingPopup() {
   if (floatingDiv && floatingDiv.style.display === 'none') {
@@ -185,72 +177,161 @@ function fetchUserList() {
 }
 
 function displayUserList(users) {
-    const userListDiv = document.getElementById('userList');
-    const executeButton = document.getElementById('executeReflection');
-    const cancelButton = document.getElementById('cancelReflection');
-    const selectAllButton = document.getElementById('selectAll');
+  const userListDiv = document.getElementById('userList');
+  const executeButton = document.getElementById('executeReflection');
+  const cancelButton = document.getElementById('cancelReflection');
+  const selectAllButton = document.getElementById('selectAll');
+
+  userListDiv.innerHTML = '';
+  users.forEach(user => {
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = user.id;
+    checkbox.id = `user-${user.id}`;
+    checkbox.classList.add('user-checkbox');
+    
+    const label = document.createElement('label');
+    label.htmlFor = `user-${user.id}`;
+    label.appendChild(document.createTextNode(user.name));
+    
+    const div = document.createElement('div');
+    div.appendChild(checkbox);
+    div.appendChild(label);
+    
+    userListDiv.appendChild(div);
+  });
+
+  executeButton.disabled = false;
+  cancelButton.disabled = false;
+  selectAllButton.disabled = false;
+
+  // 全選択ボタンのイベントリスナーを追加
+  selectAllButton.addEventListener('click', toggleSelectAll);
   
-    userListDiv.innerHTML = '';
-    users.forEach(user => {
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.value = user.id;
-      checkbox.id = `user-${user.id}`;
-      checkbox.classList.add('user-checkbox');
-      
-      const label = document.createElement('label');
-      label.htmlFor = `user-${user.id}`;
-      label.appendChild(document.createTextNode(user.name));
-      
-      const div = document.createElement('div');
-      div.appendChild(checkbox);
-      div.appendChild(label);
-      
-      userListDiv.appendChild(div);
+  // チェックボックスの状態変更を監視
+  userListDiv.addEventListener('change', updateButtonState);
+
+  savePopupState();
+}
+
+// 全選択/全解除の切り替え関数
+function toggleSelectAll() {
+  const checkboxes = document.querySelectorAll('.user-checkbox');
+  const selectAllButton = document.getElementById('selectAll');
+  const isChecked = selectAllButton.textContent === '全選択';
+  
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = isChecked;
+  });
+  
+  selectAllButton.textContent = isChecked ? '全解除' : '全選択';
+  updateButtonState();
+
+  savePopupState();
+}
+
+// ボタンの状態を更新する関数
+function updateButtonState() {
+  const checkboxes = document.querySelectorAll('.user-checkbox');
+  const checkedBoxes = document.querySelectorAll('.user-checkbox:checked');
+  const executeButton = document.getElementById('executeReflection');
+  const cancelButton = document.getElementById('cancelReflection');
+  
+  const isAnyChecked = checkedBoxes.length > 0;
+  executeButton.disabled = !isAnyChecked;
+  cancelButton.disabled = !isAnyChecked;
+  
+  const selectAllButton = document.getElementById('selectAll');
+  selectAllButton.textContent = (checkboxes.length === checkedBoxes.length) ? '全解除' : '全選択';
+
+  savePopupState();
+}
+
+async function initializeAssistant() {
+  try {
+    const userSelect = await waitForElement('select.form-control[onchange^="changeUserFromPopupList"]');
+    const monthSelect = await waitForElement('#selectServiceOfferYm');
+    const executeButton = await waitForElement('#executeReflection');
+    const cancelButton = await waitForElement('#cancelReflection');
+
+    if (userSelect && monthSelect) {
+      const currentUser = userSelect.value;
+      const currentMonth = monthSelect.value;
+      console.log(`Current User: ${currentUser}, Current Month: ${currentMonth}`);
+    } else {
+      console.log('User or month select element not found');
+    }
+
+    if (executeButton) {
+      executeButton.addEventListener('click', () => handleReflection('execute'));
+    } else {
+      console.log('Execute button not found');
+    }
+
+    if (cancelButton) {
+      cancelButton.addEventListener('click', () => handleReflection('cancel'));
+    } else {
+      console.log('Cancel button not found');
+    }
+
+  } catch (error) {
+    console.error('Error initializing assistant:', error);
+  }
+}
+
+function waitForElement(selector, timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    
+    function checkElement() {
+      const element = document.querySelector(selector);
+      if (element) {
+        resolve(element);
+      } else if (Date.now() - startTime > timeout) {
+        reject(new Error(`Element ${selector} not found within ${timeout}ms`));
+      } else {
+        setTimeout(checkElement, 100);
+      }
+    }
+    
+    checkElement();
+  });
+}
+
+
+
+function handleReflection(action) {
+  const checkedUsers = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
+  if (checkedUsers.length === 0) {
+    alert('ユーザーが選択されていません。');
+    return;
+  }
+
+  const confirmMessage = action === 'execute' ? '選択されたユーザーの予実反映を実行しますか？' : '選択されたユーザーの予実反映を解除しますか？';
+  if (confirm(confirmMessage)) {
+    checkedUsers.forEach(userId => {
+      action === 'execute' ? executeReflection(userId) : cancelReflection(userId);
     });
-  
-    executeButton.disabled = false;
-    cancelButton.disabled = false;
-    selectAllButton.disabled = false;
-  
-    // 全選択ボタンのイベントリスナーを追加
-    selectAllButton.addEventListener('click', toggleSelectAll);
-    
-    // チェックボックスの状態変更を監視
-    userListDiv.addEventListener('change', updateButtonState);
-
-    savePopupState();
   }
-  
-  // 全選択/全解除の切り替え関数
-  function toggleSelectAll() {
-    const checkboxes = document.querySelectorAll('.user-checkbox');
-    const selectAllButton = document.getElementById('selectAll');
-    const isChecked = selectAllButton.textContent === '全選択';
-    
-    checkboxes.forEach(checkbox => {
-      checkbox.checked = isChecked;
-    });
-    
-    selectAllButton.textContent = isChecked ? '全解除' : '全選択';
-    updateButtonState();
+}
 
-    savePopupState();
-  }
-  
-  // ボタンの状態を更新する関数
-  function updateButtonState() {
-    const checkboxes = document.querySelectorAll('.user-checkbox');
-    const checkedBoxes = document.querySelectorAll('.user-checkbox:checked');
-    const executeButton = document.getElementById('executeReflection');
-    const cancelButton = document.getElementById('cancelReflection');
-    
-    const isAnyChecked = checkedBoxes.length > 0;
-    executeButton.disabled = !isAnyChecked;
-    cancelButton.disabled = !isAnyChecked;
-    
-    const selectAllButton = document.getElementById('selectAll');
-    selectAllButton.textContent = (checkboxes.length === checkedBoxes.length) ? '全解除' : '全選択';
+function executeReflection(userId) {
+  console.log(`ユーザーID ${userId} の予実反映を実行中...`);
+  // ここに予実反映の実行ロジックを実装
+}
 
-    savePopupState();
+function cancelReflection(userId) {
+  console.log(`ユーザーID ${userId} の予実反映を解除中...`);
+  // ここに予実反映の解除ロジックを実装
+}
+
+// 初期化関数の実行
+function tryInitialize() {
+  if (document.readyState === 'complete') {
+    initializeAssistant();
+  } else {
+    setTimeout(tryInitialize, 100);
   }
+}
+
+tryInitialize();
