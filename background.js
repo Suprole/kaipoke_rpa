@@ -4,4 +4,5 @@ chrome.action.onClicked.addListener((tab) => {
     } else {
       alert('カイポケのページでのみ使用できます。');
     }
-  });
+});
+
