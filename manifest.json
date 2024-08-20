@@ -8,11 +8,15 @@
     },
     "permissions": [
         "activeTab",
-        "scripting"
+        "scripting",
+        "webNavigation"
     ],
     "host_permissions": [
         "https://r.kaipoke.biz/*"
     ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self' http://localhost:* http://127.0.0.1:*; object-src 'self'"
+    },    
     "action": {
         "default_icon": {
             "16": "icons/icon16.png",
@@ -25,13 +29,15 @@
       {
         "matches": ["https://r.kaipoke.biz/*"],
         "js": ["contentScript.js"],
+        "type": "module",
         "css": ["contentStyle.css"],
         "run_at": "document_end"
-      },
+      }
+    ],
+    "web_accessible_resources": [
       {
-        "matches": ["https://r.kaipoke.biz/*"],
-        "js": ["functions.js"],
-        "type": "module"
+        "resources": ["utils.js", "reflectionHandler.js", "popup.js"],
+        "matches": ["https://r.kaipoke.biz/*"]
       }
     ]
   }
