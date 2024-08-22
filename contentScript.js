@@ -18,29 +18,49 @@ async function importModules() {
 // メイン関数
 async function main() {
   try {
-    const { Utils, Navigation, ReflectionHandler, UI } = await importModules();
+    const { Utils, ReflectionHandler, UI } = await importModules();
     
     // ページ読み込み時の実行関数
     await UI.restorePopupState();
     setupMessageListener();
 
-    // メッセージリスナー定義
-    function setupMessageListener() {
-      // ポップアップ呼び出し
-      chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        if (request.action === "showFloatingPopup") {
-          UI.showFloatingPopup();
-          sendResponse({success: true});
-        }
-      });
 
-      // 解除継続
-      chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-        if (request.action === "continueCancelReflection") {
-          ReflectionHandler.continueReflectionCancel(request.userId);
-        }
-      });
+    function setupMessageListener() {
+      chrome.runtime.onMessage.addListener(handleMessage);
     }
+    
+    function handleMessage(request, sender, sendResponse) {
+      const handleAction = async () => {
+        try {
+          let result;
+          switch (request.action) {
+            case "changePulldownUser":
+              result = await ReflectionHandler.changePulldownUser(request.userId);
+              break;
+            case "checkSelectedUser":
+              result = ReflectionHandler.checkSelectedUser(request.userId);
+              break;
+            case "checkInsuranceCategory":
+              result = await ReflectionHandler.checkInsuranceCategory();
+              break;
+            case "showFloatingPopup":
+              await UI.showFloatingPopup();
+              result = { success: true };
+              break;
+            default:
+              throw new Error(`Unknown action: ${request.action}`);
+          }
+          return { success: true, result };
+        } catch (error) {
+          console.error(`Error in ${request.action}:`, error);
+          return { success: false, error: error.message };
+        }
+      };
+    
+      handleAction().then(sendResponse);
+      // return true; // 非同期レスポンスのために必要
+    }
+
     
   } catch (err) {
     console.error('Error in main function:', err);
@@ -49,3 +69,8 @@ async function main() {
 
 // メイン関数の実行
 main();
+
+
+// デバック用
+
+

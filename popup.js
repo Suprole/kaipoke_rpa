@@ -256,21 +256,15 @@ function executeReflection(userId) {
     // ここに予実反映の実行ロジックを実装
 }
 
-// 解除のロジック関数
+// 全体の解除開始をbackgroundに通知する関数
 async function cancelReflectionForUsers(userIds) {
-    for (const userId of userIds) {
-      // reflectionHandlerからcancelReflectionを呼び出す
-      const result = await cancelReflection(userId);
-      if (result.success) {
-        console.log(`ユーザーID ${userId} の予実反映を解除しました: ${result.message}`);
-        // UIを更新する（例：チェックボックスをオフにする、完了メッセージを表示するなど）
-        updateUIAfterCancellation(userId, true);
-      } else {
-        console.error(`ユーザーID ${userId} の予実反映解除に失敗しました: ${result.message}`);
-        // エラーメッセージをUIに表示する
-        updateUIAfterCancellation(userId, false, result.message);
-      }
-    }
+    // background.jsにuserIdsを渡し、全体の解除開始を通知
+    await new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          action: "startAllCancelReflection",
+          userIds: userIds
+        }, resolve);
+    });
 }
 
 // 解除の成功失敗に応じたUIの変化を行う関数
@@ -305,5 +299,6 @@ export {
     showFloatingPopup,
     restorePopupState,
     makeDraggable,
+    updateUIAfterCancellation
     // 必要に応じて他の関数もここにリストアップ
   };

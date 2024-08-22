@@ -4,7 +4,47 @@
 
 const baseUrl = chrome.runtime.getURL('');
 
-const { debugLog, getCurrentUrl, waitForElement, waitForModal, waitForModalClose } = await import(baseUrl + 'utils.js');
+const { wait, debugLog, getCurrentUrl, waitForElement, waitForModal, waitForModalClose } = await import(baseUrl + 'utils.js');
+// 対象ユーザーをプルダウンから選択する
+async function changePulldownUser(userId) {
+    return new Promise((resolve, reject) => {
+      const select = document.querySelector('.pulldownUser select');
+      if (!select) {
+        reject(new Error('ユーザー選択プルダウンが見つかりません。'));
+        return;
+      }
+
+      // 値を変更し、changeイベントを発火
+      select.value = userId;
+      select.dispatchEvent(new Event('change'));
+
+      resolve();
+    });
+}
+
+function checkSelectedUser(userId) {
+    const selectedOption = document.querySelector('.pulldownUser select.form-control option:checked');
+    return { 
+        isMatched: selectedOption ? selectedOption.value === userId : false 
+    };
+}
+  
+
+  
+function checkInsuranceCategory() {
+    const careSpan = document.querySelector('.icon-care');
+    const medicalSpan = document.querySelector('.icon-medical');
+    
+    if (careSpan && careSpan.textContent.trim() === "介") {
+      return { result: "介" };
+    } else if (medicalSpan && medicalSpan.textContent.trim() === "医") {
+      return { result: "医" };
+    } else if (!careSpan && !medicalSpan) {
+      return { result: "なし" };
+    } else {
+      return { result: "不明" };
+    }
+}
 
 // 解除を実行する関数。popup.jsから呼ばれる
 async function cancelReflection(userId) {
@@ -21,14 +61,7 @@ async function cancelReflection(userId) {
       // 
     //   const targetUrl = "https://r.kaipoke.biz/kaipokebiz/business/plan_actual";
       
-      // バックグラウンドスクリプトに遷移開始を通知
-      await new Promise((resolve) => {
-        chrome.runtime.sendMessage({
-          action: "startCancelReflection",
-          // 仮userIdここ
-          userId: "11111111"
-        }, resolve);
-      });
+      
   
       // 予定実績管理ページへのリンクを見つける
       const link = await waitForElement('#submitLinkToHNC097102');
@@ -42,7 +75,9 @@ async function cancelReflection(userId) {
     //   await waitForNavigation();
   
       // 以降の処理（実績解除ボタンのクリックなど）
-      return await continueReflectionCancel(userId);
+    //   return await continueReflectionCancel(userId);
+
+
   
     } catch (error) {
         console.error(`[ERROR] ユーザーID ${userId} の予実反映解除中にエラーが発生しました:`, error);
@@ -114,6 +149,7 @@ async function clickCancelButton() {
       throw new Error('実績解除ボタンが見つかりません');
     }
     button.click();
+    await wait(1)
   }
   
 // サービス内容を削除する関数
@@ -127,6 +163,7 @@ async function deleteServiceContents() {
 // サービス内容を削除する関数の実行部分
 async function deleteService(link) {
     link.click();
+    await wait(1)
     await waitForModal();
     
     const deleteButton = document.querySelector('formPopup\\:delete');
@@ -134,7 +171,10 @@ async function deleteService(link) {
       throw new Error('削除ボタンが見つかりません');
     }
     deleteButton.click();
+    await wait(1)
     await waitForModalClose();
 }
 
-export { cancelReflection, continueReflectionCancel};
+
+
+export { cancelReflection, continueReflectionCancel, changePulldownUser, checkInsuranceCategory, checkSelectedUser};

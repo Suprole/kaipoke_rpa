@@ -5,6 +5,11 @@ const baseUrl = chrome.runtime.getURL('');
 //     return window.location.href.startsWith('https://r.kaipoke.biz/bizhnc/monthlyShiftsList/');
 // }
   
+// wait関数
+async function wait(second){
+    return new Promise(resolve => setTimeout(resolve, 1000 * second))
+}
+
 // デバッグメッセージ用関数
 function debugLog(message) {
     console.log(`[DEBUG ${new Date().toISOString()}] ${message}`);
@@ -42,7 +47,7 @@ function waitForElement(selector, timeout = 10000) {
     });
 }
 
-// モーダルを表示させ、出現を待つ関数
+// モーダルの出現を待つ関数
 function waitForModal() {
     return new Promise(resolve => {
       const observer = new MutationObserver(mutations => {
@@ -62,7 +67,7 @@ function waitForModal() {
     });
 }
   
-// モーダルを閉じる関数
+// モーダルが閉じるのを待つ関数
 function waitForModalClose() {
     return new Promise(resolve => {
       const observer = new MutationObserver(mutations => {
@@ -82,4 +87,4 @@ function waitForModalClose() {
     });
 }
 
-export { debugLog, waitForElement, getCurrentUrl, waitForModal, waitForModalClose};
+export { wait, debugLog, waitForElement, getCurrentUrl, waitForModal, waitForModalClose};
