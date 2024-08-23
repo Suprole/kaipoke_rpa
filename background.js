@@ -1,14 +1,21 @@
+// 拡張機能のバックエンドファイル
+// ページ更新とかに関係なく常駐している
+// 自動操作の進行管理はここで行う
+
+
+// 変数定義
 let currentUrl = '';
 let currentTabId = null;
-let currentUserId = null;
-let shouldFireOnCompleted = false;
-let clickedCancelButton = false;
 
 
-
-// 解除実行管理
+// 選択されたユーザー全体に対する解除実行管理関数
 async function manageCancelReflection(userIds) {
   try {
+    if (!currentUrl.startsWith('https://r.kaipoke.biz/bizhnc/monthlyShiftsList')){
+      console.log('月間スケジュール管理ページ以外で行おうとしています。')
+      throw new Error('月間スケジュール管理ページ以外で行おうとしています。')
+    }
+
     for (const userId of userIds) {
       await processUser(userId);
     }
@@ -19,13 +26,16 @@ async function manageCancelReflection(userIds) {
   }
 }
 
+// 一つのuserIdに対する解除の管理関数
 async function processUser(userId) {
   try {
+    // プルダウンの選択ユーザーと処理ユーザーが一致するか
     const responseMatchedUser = await new Promise((resolve) => {
       chrome.tabs.sendMessage(currentTabId, { action: "checkSelectedUser", userId: userId }, resolve);
     });
     console.log(1, responseMatchedUser.result.isMatched);
     
+    // 一致しない場合はプルダウンから変更し、遷移を待つ
     if (!responseMatchedUser.result.isMatched) {
       console.log(`Changing user to ${userId}`);
       new Promise((resolve) => {
@@ -37,11 +47,87 @@ async function processUser(userId) {
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
     
+    // 保険区分をチェック
     const responseInsuranceCategory = await new Promise((resolve) => {
       chrome.tabs.sendMessage(currentTabId, {action: "checkInsuranceCategory"}, resolve);
     });
-    console.log(responseInsuranceCategory.result);
+    console.log(responseInsuranceCategory.result.result);
     
+    // 「介」以外の場合は次のユーザーへスキップ
+    if (responseInsuranceCategory.result.result !== '介'){
+      console.log('介護保険適用者ではありません。次のユーザーへスキップします。');
+      return;
+    }
+
+    // リンクをクリックして予定実績管理ページへ遷移
+    console.log(`navigate to plan actual page`);
+    new Promise((resolve) => {
+      chrome.tabs.sendMessage(currentTabId, { action: "clickPlanActualLink"}, resolve);
+    });
+    console.log('waiting for page to stabilize');
+    
+    // ページ遷移後の安定を待つ
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+
+
+    // 実績管理ページの実績が完全になくなるまで以下を繰り返す
+    console.log(`Attempting to click cancel Actual Button`);
+    let cancelStatus = '';
+
+    while (cancelStatus !== 'notExistActual') {
+      try {
+        // 1秒待機で安定を待つ
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // 実績ボタンを解除しつつ状態を確認
+        const cancelResult = await new Promise((resolve) => {
+          chrome.tabs.sendMessage(currentTabId, { action: "clickCancelActualButton" }, resolve);
+        });
+        console.log(5, cancelResult)
+        
+        // 1秒待機で安定を待つ
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // 解除の進行状況を保存
+        cancelStatus = cancelResult.result.status;
+        console.log(6, cancelStatus)
+        console.log(`Cancel status: ${cancelStatus}, Message: ${cancelResult.result.message}`);
+        
+        // 全ての実績がない状態になればwhileをbreak
+        if (cancelStatus === 'notExistActual') {
+          break;
+        }
+        
+        // サービス内容の削除処理
+        console.log(`delete Service Contents`);
+        await new Promise((resolve) => {
+          chrome.tabs.sendMessage(currentTabId, { action: "deleteServiceContent"}, resolve);
+        });
+        
+        // アラートのユーザーアクションを待つ
+        console.log('waiting for page to stabilize');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+
+      } catch (error) {
+        console.error('Error occurred while clicking cancel button:', error);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+
+    // リンクをクリックして月間スケジュール管理ページへ遷移
+    console.log(`navigate to monthly schedule page`);
+    new Promise((resolve) => {
+      chrome.tabs.sendMessage(currentTabId, { action: "clickMonthlyScheduleLink"}, resolve);
+    });
+    console.log('waiting for page to stabilize');
+
+    // ページ遷移後の安定を待つ
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+
   } catch (error) {
     console.error(`Error processing user ${userId}:`, error);
     throw error;
@@ -49,45 +135,16 @@ async function processUser(userId) {
 }
 
 
-// 関数
-// 解除開始メッセージを受けたときに実行される
-function startNavigationListener(tabId, userId) {
-  currentTabId = tabId;
-  currentUserId = userId;
-  shouldFireOnCompleted = true; // フラグをtrueに設定
-}
-
-// 実績解除ボタンが押されたときに実行される
-function clickedCancelButtonListener(tabId, userId) {
-  currentTabId = tabId;
-  currentUserId = userId;
-  clickedCancelButton = true; // フラグをtrueに設定
-}
-
+// 関数定義
+// 解除ボタンがおされると走る
 function startAllCancelReflectionListener(tabId, userIds) {
   currentTabId = tabId;
   manageCancelReflection(userIds)
 }
 
 
-// 遷移管理
-// 自動遷移かつ実績管理ページへの遷移で発火し、解除のロジックを実行する
-chrome.webNavigation.onCompleted.addListener((details) => {
-  if (shouldFireOnCompleted && details.tabId === currentTabId && details.url.includes('plan_actual')) {
-    setTimeout(() => {
-      chrome.tabs.sendMessage(currentTabId, { action: "continueCancelReflection", userId: currentUserId });
-      shouldFireOnCompleted = false; // リセット
-    }, 1000);
-  }
-  if (clickedCancelButton && details.tabId === currentTabId && details.url.includes('plan_actual')) {
-    setTimeout(() => {
-      chrome.tabs.sendMessage(currentTabId, { action: "", userId: currentUserId });
-      clickedCancelButton = false; // リセット
-    }, 1000);
-  }
-  
-});
 
+// ブラウザ動作関連
 // タブの更新を監視
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && tab.url.startsWith('https://r.kaipoke.biz/')) {
@@ -127,29 +184,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({success: true});
     return true;
   }
-
-  // 個人の解除開始の通知を受けとったとき
-  if (request.action === "startCancelReflection") {
-    currentTabId = sender.tab.id;
-    startNavigationListener(sender.tab.id, request.userId);
-    sendResponse({success: true});
-    return true;
-  }
-  
-  // 実績解除ボタンが押された通知
-  if (request.action === "clickedCancelButton") {
-    currentTabId = sender.tab.id;
-    clickedCancelButtonListener(sender.tab.id, request.userId);
-    sendResponse({success: true});
-    return true;
-  }
-
-
 });
 
 
 
 // // csp対策
+// // 今の規格やとエラー吐く
 // chrome.webRequest.onHeadersReceived.addListener(function(detail){
 //   const headers = detail.responseHeaders.filter(e => e.name !== "content-security-policy")
 //   return {responseHeaders: headers}

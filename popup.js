@@ -1,6 +1,4 @@
-const baseUrl = chrome.runtime.getURL('');
-
-const { cancelReflection } = await import(baseUrl + 'reflectionHandler.js');
+// ポップアップUIに関する関数をまとめたファイル
 
 let floatingDiv = null;
 
@@ -267,38 +265,12 @@ async function cancelReflectionForUsers(userIds) {
     });
 }
 
-// 解除の成功失敗に応じたUIの変化を行う関数
-function updateUIAfterCancellation(userId, success, errorMessage = '') {
-    const checkbox = document.querySelector(`#user-${userId}`);
-    if (checkbox) {
-      checkbox.checked = false;
-    }
-  
-    // 解除の成功失敗に応じてメッセージを作成
-    const messageDiv = document.createElement('div');
-    messageDiv.textContent = success 
-      ? `ユーザーID ${userId} の予実反映を解除しました。`
-      : `ユーザーID ${userId} の予実反映解除に失敗しました: ${errorMessage}`;
-    messageDiv.style.color = success ? 'green' : 'red';
-    
-    // メッセージをポップアップに追加
-    const userListDiv = document.getElementById('userList');
-    userListDiv.appendChild(messageDiv);
-  
-    // 一定時間後にメッセージを消す
-    setTimeout(() => {
-      messageDiv.remove();
-    }, 5000);
-  
-    // ボタンの状態を更新
-    updateButtonState();
-}
+
 
 // 他ファイルで使う関数をexport
 export {
     showFloatingPopup,
     restorePopupState,
     makeDraggable,
-    updateUIAfterCancellation
     // 必要に応じて他の関数もここにリストアップ
-  };
+};

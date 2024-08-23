@@ -9,7 +9,9 @@
     "permissions": [
         "activeTab",
         "scripting",
-        "webNavigation"
+        "webNavigation",
+        "webRequest",
+        "declarativeNetRequest"
     ],
     "host_permissions": [
         "https://r.kaipoke.biz/*"
