@@ -6,6 +6,7 @@
 // 変数定義
 let currentUrl = '';
 let currentTabId = null;
+let isLoadedContentScript = false; 
 
 // 選択されたユーザー全体に対する確定実行管理関数
 async function manageFixReflection(userIds) {
@@ -46,40 +47,21 @@ async function manageCancelReflection(userIds) {
 // 一つのuserIdに対する解除の管理関数
 async function fixProcessUser(userId) {
   try {
-    await new Promise(resolve => setTimeout(resolve, 1000));
     await waitForTabUpdate(currentTabId);
-    console.log(0, 'タブの更新が完了しました')
-
+    console.log(0)
     
-    const responseMatchedUser = await new Promise((resolve) => {
-      chrome.tabs.sendMessage(currentTabId, { action: "checkSelectedUser", userId: userId }, resolve);
-    });
-    console.log(1, responseMatchedUser.result);
+    // プルダウンからユーザーを変更する
+    console.log(`Changing user to ${userId}`);
+    await sendMessageWithRetry(currentTabId, { action: "changePulldownUser", userId: userId });
+    console.log('User changed, waiting for page to stabilize');
     
-    // 一致しない場合はプルダウンから変更し、遷移を待つ
-    if (!responseMatchedUser.result.isMatched) {
-      console.log(`Changing user to ${userId}`);
-      await new Promise((resolve) => {
-        chrome.tabs.sendMessage(currentTabId, { action: "changePulldownUser", userId: userId }, resolve);
-      });
-      console.log('User changed, waiting for page to stabilize');
-      
-      // ページ遷移後の安定を待つ
-      await new Promise(resolve => setTimeout(resolve, 1300));
-      await waitForTabUpdate(currentTabId);
-      console.log(1, 'タブの更新が完了しました')
-    }
+    
+    await waitForContentScript();
+    console.log(1)
+    
     
     // 保険区分をチェック
-    const responseInsuranceCategory = await new Promise((resolve, reject) => {
-      chrome.tabs.sendMessage(currentTabId, { action: "checkInsuranceCategory" }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve(response);
-        }
-      });
-    });
+    const responseInsuranceCategory = await sendMessageWithRetry(currentTabId, { action: "checkInsuranceCategory" });
     console.log(responseInsuranceCategory.result);
     
     // 「介」以外の場合は次のユーザーへスキップ
@@ -89,84 +71,59 @@ async function fixProcessUser(userId) {
     }
     
 
-    // 1秒待機で安定を待つ
-    await new Promise(resolve => setTimeout(resolve, 1000));
     await waitForTabUpdate(currentTabId);
-    // await waitForTabUpdateAndContentScript(currentTabId);
-    console.log(2, 'タブの更新が完了しました')
+    console.log(2)
 
 
     try {
       // ボタンをクリックして予定管理に実績を反映させる
       console.log("click reflect Actual Button");
-      await new Promise((resolve, reject) => {
-        chrome.tabs.sendMessage(currentTabId, { action: "clickReflectActualButton" }, (response) => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            resolve(response);
-          }
-        });
-      });
+      await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton", });
       
-      // ページ遷移後の安定を待つ
-      console.log('waiting for page to stabilize');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      await waitForTabUpdate(currentTabId);
-      console.log(3, 'タブの更新が完了しました')
+      
+      await waitForContentScript();
+      console.log(3)
 
     } catch (error) {
       console.error('Error occurred while clicking cancel button:', error);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      await waitForTabUpdate(currentTabId);
-      console.log(4, 'タブの更新が完了しました')
+      await waitForContentScript();
+      console.log(4)
     }
 
     
 
     // リンクをクリックして予定実績管理ページへ遷移
     console.log(`navigate to plan actual page`);
-    await new Promise((resolve, reject) => {
-      chrome.tabs.sendMessage(currentTabId, { action: "clickPlanActualLink" }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve(response);
-        }
-      });
-    });
-    
+    await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink", });
     console.log('waiting for page to stabilize');
     
-    // ページ遷移後の安定を待つ
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await waitForTabUpdate(currentTabId);
-    console.log(5, 'タブの更新が完了しました')
+    
+    await waitForContentScript();
+    console.log(5)
 
 
     // 実績確定ボタンをおしつつ状態を確認
-    const fixResult = await new Promise((resolve) => {
-      chrome.tabs.sendMessage(currentTabId, { action: "clickFixActualButton" }, resolve);
-    });
+    const fixResult = await sendMessageWithRetry(currentTabId, { action: "clickFixActualButton", });
     console.log(1, fixResult)
 
-    // ページ遷移後の安定を待つ
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    await waitForTabUpdate(currentTabId);
-    console.log(6, 'タブの更新が完了しました')
+
+    if (fixResult.result.status === 'fixActual'){
+      await waitForContentScript();
+      console.log(6)
+    } else {
+      await waitForTabUpdate(currentTabId);
+      console.log(6)
+    }
 
 
     // リンクをクリックして月間スケジュール管理ページへ遷移
     console.log(`navigate to monthly schedule page`);
-    await new Promise((resolve) => {
-      chrome.tabs.sendMessage(currentTabId, { action: "clickMonthlyScheduleLink"}, resolve);
-    });
+    await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink", });
     console.log('waiting for page to stabilize');
 
     // ページ遷移後の安定を待つ
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    await waitForTabUpdate(currentTabId);
-    console.log(7, 'タブの更新が完了しました')    
+    await waitForContentScript();
+    console.log(7)    
 
 
   } catch (error) {
@@ -197,35 +154,23 @@ async function manageCancelReflection(userIds) {
 // 一つのuserIdに対する解除の管理関数
 async function cancelProcessUser(userId) {
   try {
-    await new Promise(resolve => setTimeout(resolve, 1000));
     await waitForTabUpdate(currentTabId);
-    // await waitForTabUpdateAndContentScript(currentTabId);
-    console.log(0, 'タブの更新が完了しました')
+    console.log(0)    
     
 
-    // プルダウンの選択ユーザーと処理ユーザーが一致するか
-    const responseMatchedUser = await new Promise((resolve) => {
-      chrome.tabs.sendMessage(currentTabId, { action: "checkSelectedUser", userId: userId }, resolve);
-    });
-    console.log(1, responseMatchedUser.result.isMatched);
+    
     
     // 一致しない場合はプルダウンから変更し、遷移を待つ
-    if (!responseMatchedUser.result.isMatched) {
-      console.log(`Changing user to ${userId}`);
-      new Promise((resolve) => {
-        chrome.tabs.sendMessage(currentTabId, { action: "changePulldownUser", userId: userId }, resolve);
-      });
-      console.log('User changed, waiting for page to stabilize');
-      
-      // ページ遷移後の安定を待つ
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      await waitForTabUpdate(currentTabId);
-    }
+    console.log(`Changing user to ${userId}`);
+    await sendMessageWithRetry(currentTabId, { action: "changePulldownUser", userId: userId });
+    console.log('User changed, waiting for page to stabilize');
+    
+    // ページ遷移後の安定を待つ
+    await waitForContentScript();
+    console.log(1)    
     
     // 保険区分をチェック
-    const responseInsuranceCategory = await new Promise((resolve) => {
-      chrome.tabs.sendMessage(currentTabId, {action: "checkInsuranceCategory"}, resolve);
-    });
+    const responseInsuranceCategory = await sendMessageWithRetry(currentTabId, { action: "checkInsuranceCategory", });
     console.log(responseInsuranceCategory.result.result);
     
     // 「介」以外の場合は次のユーザーへスキップ
@@ -236,14 +181,12 @@ async function cancelProcessUser(userId) {
 
     // リンクをクリックして予定実績管理ページへ遷移
     console.log(`navigate to plan actual page`);
-    new Promise((resolve) => {
-      chrome.tabs.sendMessage(currentTabId, { action: "clickPlanActualLink"}, resolve);
-    });
+    await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink", });
     console.log('waiting for page to stabilize');
     
-    // ページ遷移後の安定を待つ
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await waitForTabUpdate(currentTabId);
+    
+    await waitForContentScript();
+    console.log(2)    
 
 
     // 実績管理ページの実績が完全になくなるまで以下を繰り返す
@@ -252,22 +195,20 @@ async function cancelProcessUser(userId) {
 
     while (cancelStatus !== 'notExistActual') {
       try {
-        // 1秒待機で安定を待つ
-        console.log(1)
-        await new Promise(resolve => setTimeout(resolve, 1000));
         await waitForTabUpdate(currentTabId);
-        // await waitForTabUpdateAndContentScript(currentTabId);
+        console.log(3)    
 
         // 実績ボタンを解除しつつ状態を確認
-        console.log(2)
-        const cancelResult = await new Promise((resolve) => {
-          chrome.tabs.sendMessage(currentTabId, { action: "clickCancelActualButton" }, resolve);
-        });
+        const cancelResult = await sendMessageWithRetry(currentTabId, { action: "clickCancelActualButton" });
         console.log(5, cancelResult)
         
-        // 1秒待機で安定を待つ
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await waitForTabUpdate(currentTabId);
+        if(cancelResult.result.status === 'canceldActual'){
+          await waitForContentScript();
+          console.log(4)    
+        } else {
+          await waitForTabUpdate(currentTabId);
+          console.log(4)
+        }
 
         // 解除の進行状況を保存
         cancelStatus = cancelResult.result.status;
@@ -281,14 +222,10 @@ async function cancelProcessUser(userId) {
         
         // サービス内容の削除処理
         console.log(`delete Service Contents`);
-        await new Promise((resolve) => {
-          chrome.tabs.sendMessage(currentTabId, { action: "deleteServiceContent"}, resolve);
-        });
+        await sendMessageWithRetry(currentTabId, { action: "deleteServiceContent", });
         
-        // アラートのユーザーアクションを待つ
-        console.log('waiting for page to stabilize');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await waitForTabUpdate(currentTabId);
+        await waitForContentScript();
+        console.log(5)
 
 
       } catch (error) {
@@ -300,14 +237,11 @@ async function cancelProcessUser(userId) {
 
     // リンクをクリックして月間スケジュール管理ページへ遷移
     console.log(`navigate to monthly schedule page`);
-    new Promise((resolve) => {
-      chrome.tabs.sendMessage(currentTabId, { action: "clickMonthlyScheduleLink"}, resolve);
-    });
+    await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink", });
     console.log('waiting for page to stabilize');
 
-    // ページ遷移後の安定を待つ
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    await waitForTabUpdate(currentTabId);
+    await waitForContentScript();
+    console.log(6)
 
 
   } catch (error) {
@@ -349,6 +283,55 @@ function waitForTabUpdate(tabId) {
   });
 }
 
+// タブの状態を確認して必要に応じてリロードする
+async function ensureTabIsActive(tabId) {
+  const tab = await new Promise(resolve => chrome.tabs.get(tabId, resolve));
+  if (tab.status !== 'complete') {
+    await new Promise(resolve => chrome.tabs.reload(tabId, {}, resolve));
+    await waitForTabUpdate(tabId);
+  }
+}
+
+// コンテントスクリプトの読み込みを待機する関数
+function waitForContentScript(timeout = 5000) {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    
+    function checkLoadStatus() {
+      if (isLoadedContentScript) {
+        isLoadedContentScript = false;
+        resolve();
+      } else if (Date.now() - startTime >= timeout) {
+        reject(new Error("Content script load timeout"));
+      } else {
+        setTimeout(checkLoadStatus, 100); // 100ミリ秒ごとに再チェック
+      }
+    }
+    
+    checkLoadStatus();
+  });
+}
+
+// sendMessageを安定して送るための関数
+async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await new Promise((resolve, reject) => {
+        chrome.tabs.sendMessage(tabId, message, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve(response);
+          }
+        });
+      });
+    } catch (error) {
+      console.warn(`Attempt ${i + 1} failed: ${error.message}`);
+      if (i === maxRetries - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1秒待機
+    }
+  }
+}
 
 
 // ブラウザ動作関連
@@ -377,6 +360,8 @@ chrome.action.onClicked.addListener((tab) => {
 
 // メッセージリスナー
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log(request.action)
+
   // url取得
   if (request.action === "getCurrentUrl") {
     sendResponse({url: currentUrl});
@@ -397,6 +382,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     startAllFixReflectionListener(sender.tab.id, request.userIds)
     sendResponse({success: true});
     return true;
+  }
+
+
+  // ページ読み込み完了を受け取ったとき
+  if (request.action === "contentScriptReady") {
+    currentTabId = sender.tab.id;
+    isLoadedContentScript = true;
+    return true
   }
 });
 

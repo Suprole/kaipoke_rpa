@@ -1,7 +1,7 @@
 // 実行と解除に関する関数をまとめたファイル
 
 const MAX_ATTEMPTS = 5;
-const RETRY_DELAY = 1000;
+const RETRY_DELAY = 300;
 
 // ユーティリティ関数: 要素が見つかるまで待機
 async function waitForElement(selector, maxAttempts = MAX_ATTEMPTS) {
@@ -139,11 +139,12 @@ async function checkSelectedUser(userId) {
 async function checkInsuranceCategory() {
     try {
         const careSpan = await waitForElement('.icon-care').catch(() => null);
-        const medicalSpan = await waitForElement('.icon-medical').catch(() => null);
         
         if (careSpan && careSpan.textContent.trim() === "介") {
-          return { result: "介", status: 'success', message: '保険区分をチェックしました。' };
-        } else if (medicalSpan && medicalSpan.textContent.trim() === "医") {
+            return { result: "介", status: 'success', message: '保険区分をチェックしました。' };
+        } 
+        const medicalSpan = await waitForElement('.icon-medical').catch(() => null);
+        if (medicalSpan && medicalSpan.textContent.trim() === "医") {
           return { result: "医", status: 'success', message: '保険区分をチェックしました。' };
         } else if (!careSpan && !medicalSpan) {
           return { result: "なし", status: 'success', message: '保険区分をチェックしました。' };
