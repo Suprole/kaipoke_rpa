@@ -36,12 +36,23 @@ async function main() {
     function setupMessageListener() {
       chrome.runtime.onMessage.addListener(handleMessage);
     }
+
     
     function handleMessage(request, sender, sendResponse) {
       const handleAction = async () => {
         try {
           let result;
           switch (request.action) {
+            case "checkContentScriptReady":
+              // コンテンツスクリプトの準備状態を確認するための新しいケース
+              result = { ready: true };
+              break;
+            case "clickFixActualButton":
+              result = await ReflectionHandler.clickFixActualButton();
+              break;
+            case "clickReflectActualButton":
+              result = await ReflectionHandler.clickReflectActualButton();
+              break;
             case "deleteServiceContent":
               result = await ReflectionHandler.deleteServiceContent();
               break;
@@ -58,7 +69,7 @@ async function main() {
               result = await ReflectionHandler.changePulldownUser(request.userId);
               break;
             case "checkSelectedUser":
-              result = ReflectionHandler.checkSelectedUser(request.userId);
+              result = await ReflectionHandler.checkSelectedUser(request.userId);
               break;
             case "checkInsuranceCategory":
               result = await ReflectionHandler.checkInsuranceCategory();
@@ -77,11 +88,16 @@ async function main() {
         }
       };
     
-      handleAction().then(sendResponse);
-      // return true; // 非同期レスポンスのために必要
+      handleAction().then(sendResponse).catch((error) => {
+        console.error('Unhandled error in handleAction:', error);
+        sendResponse({ success: false, error: 'Unhandled error occurred' });
+      });
+      return true; // 非同期レスポンスのために必要
     }
 
-    
+    // コンテンツスクリプトの準備完了を通知
+    chrome.runtime.sendMessage({ action: "contentScriptReady" });
+
   } catch (err) {
     console.error('Error in main function:', err);
   }

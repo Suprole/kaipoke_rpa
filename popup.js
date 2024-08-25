@@ -241,7 +241,7 @@ function handleReflection(action) {
     const confirmMessage = action === 'execute' ? '選択されたユーザーの予実反映を実行しますか？' : '選択されたユーザーの予実反映を解除しますか？';
     if (confirm(confirmMessage)) {
       if (action === 'execute') {
-        executeReflection(checkedUsers);
+        executeReflectionForUsers(checkedUsers);
       } else {
         cancelReflectionForUsers(checkedUsers);
       }
@@ -249,9 +249,14 @@ function handleReflection(action) {
 }
  
 // 実行のロジック関数
-function executeReflection(userId) {
-    console.log(`ユーザーID ${userId} の予実反映を実行中...`);
-    // ここに予実反映の実行ロジックを実装
+async function executeReflectionForUsers(userIds) {
+    // background.jsにuserIdsを渡し、全体の確定開始を通知
+    await new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          action: "startAllFixReflection",
+          userIds: userIds
+        }, resolve);
+    });
 }
 
 // 全体の解除開始をbackgroundに通知する関数
