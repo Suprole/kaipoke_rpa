@@ -78,11 +78,17 @@ async function fixProcessUser(userId) {
     try {
       // ボタンをクリックして予定管理に実績を反映させる
       console.log("click reflect Actual Button");
-      await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton", });
+      const responseClickReflectionActualButton = await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton", });
+      console.log(responseClickReflectionActualButton.result)
       
-      
-      await waitForContentScript();
-      console.log(3)
+      if (responseClickReflectionActualButton.result.status === 'buttonDisabled') {
+        await waitForTabUpdate(currentTabId);
+        console.log(3)
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        await waitForContentScript();
+        console.log(3)
+      }
 
     } catch (error) {
       console.error('Error occurred while clicking cancel button:', error);

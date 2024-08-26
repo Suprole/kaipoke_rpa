@@ -43,8 +43,12 @@ async function clickFixActualButton() {
 async function clickReflectActualButton() {
     try {
         const button = await waitForElement('button[onclick="confirmReflectPlanActual(\'02\')"]');
-        button.click();
-        return { status: 'reflectedActual', message: '実績を反映ボタンを押しました' };
+        if (button.hasAttribute('disabled')) {
+            return { status: 'buttonDisabled', message: '実績を反映ボタンは無効です' };
+        } else {
+            button.click();
+            return { status: 'reflectedActual', message: '実績を反映ボタンを押しました' };
+        }
       } catch (error) {
         throw new Error('実績を反映ボタンが見つかりません。');
     }
