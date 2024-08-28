@@ -299,7 +299,7 @@ async function ensureTabIsActive(tabId) {
 }
 
 // コンテントスクリプトの読み込みを待機する関数
-function waitForContentScript(timeout = 5000) {
+function waitForContentScript(timeout = 10000) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
     
