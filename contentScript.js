@@ -68,7 +68,16 @@ async function main() {
             case "changePulldownUser":
               result = await ReflectionHandler.changePulldownUser(request.userId);
               break;
-            case "checkS
+            case "checkSelectedUser":
+              result = await ReflectionHandler.checkSelectedUser(request.userId);
+              break;
+            case "checkInsuranceCategory":
+              result = await ReflectionHandler.checkInsuranceCategory();
+              break;
+            case "showFloatingPopup":
+              await UI.showFloatingPopup();
+              result = { success: true };
+              break;
             // デバックゾーン
             
           }
