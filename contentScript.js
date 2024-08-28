@@ -65,7 +65,7 @@ async function main() {
             case "clickMonthlyScheduleLink":
               result = await ReflectionHandler.clickMonthlyScheduleLink();
               break;
-            case "changePullownUser":
+            case "changePulldownUser":
               result = await ReflectionHandler.changePulldownUser(request.userId);
               break;
             case "checkSelectedUser":
