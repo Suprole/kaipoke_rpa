@@ -2,7 +2,7 @@
     position: fixed;
     top: 20px;
     right: 20px;
-    width: 300px;
+    width: 600px;
     height: 400px;
     background-color: white;
     border: 1px solid #ccc;
@@ -30,6 +30,27 @@
     padding: 10px;
     overflow-y: auto;
     height: calc(100% - 40px);
+    display: flex;
+  }
+  
+  .left-content {
+    flex: 1;
+    padding-right: 10px;
+  }
+  
+  .right-content {
+    flex: 1;
+    padding-left: 10px;
+    border-left: 1px solid #ccc;
+  }
+  
+  #progressStatus, #errorLog {
+    margin-bottom: 10px;
+  }
+  
+  #errorLog {
+    max-height: 300px;
+    overflow-y: auto;
   }
   
   #kaipoke-assistant-popup button {

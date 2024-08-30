@@ -1,7 +1,7 @@
 // 実行と解除に関する関数をまとめたファイル
 
 const MAX_ATTEMPTS = 5;
-const RETRY_DELAY = 300;
+const RETRY_DELAY = 200;
 
 // ユーティリティ関数: 要素が見つかるまで待機
 async function waitForElement(selector, maxAttempts = MAX_ATTEMPTS) {
@@ -20,6 +20,45 @@ async function waitForElement(selector, maxAttempts = MAX_ATTEMPTS) {
     };
     checkElement();
   });
+}
+
+// 確定後のログを取得する関数
+async function fetchFixResult() {
+    try {
+        // カイポケのエラーメッセージを取得
+        const errorMessageDiv = await waitForElement('div.txt-attend').catch(() => null);
+
+        if(errorMessageDiv) {
+            // div 要素内の最初の li 要素を選択
+            const liElement = errorMessageDiv.querySelector('li');
+            // li 要素のテキストコンテンツを取得
+            const text = liElement.textContent;
+            return { 
+                status: 'failed',
+                message: text
+            };
+        }
+        
+        const resultMessageDiv = await waitForElement('div.box-confirmed').catch(() => null);
+
+        // console.log(resultMessageDiv);
+
+        if (resultMessageDiv) {
+            // divタグの中のテキストを取得
+            const text = resultMessageDiv.textContent;
+            return { 
+                status: 'success',
+                message: text
+            };
+        }
+
+        return { 
+          status: 'nothing',
+          message: 'ログがありません。確定できていない可能性があります。'
+        };
+      } catch (error) {
+        throw new Error('ログの取得に失敗しました。');
+    }
 }
 
 
@@ -171,5 +210,6 @@ export {
     clickPlanActualLink, 
     changePulldownUser, 
     checkInsuranceCategory, 
-    checkSelectedUser
+    checkSelectedUser,
+    fetchFixResult
 };

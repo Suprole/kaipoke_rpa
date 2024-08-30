@@ -2,6 +2,25 @@
 
 let floatingDiv = null;
 
+// ユーティリティ関数: 要素が見つかるまで待機
+async function waitForElement(selector, maxAttempts = MAX_ATTEMPTS) {
+    return new Promise((resolve, reject) => {
+      let attempts = 0;
+      const checkElement = () => {
+        attempts++;
+        const element = document.querySelector(selector);
+        if (element) {
+          resolve(element);
+        } else if (attempts < maxAttempts) {
+          setTimeout(checkElement, RETRY_DELAY);
+        } else {
+          reject(new Error(`Element ${selector} not found after ${maxAttempts} attempts`));
+        }
+      };
+      checkElement();
+    });
+}
+
 // ポップアップを表示
 function showFloatingPopup() {
   // すでに存在しているが表示されていない場合は表示してreturn
@@ -14,20 +33,27 @@ function showFloatingPopup() {
     return;
   }
 
-// divタグ作成
+
+  // divタグ作成
   floatingDiv = document.createElement('div');
   floatingDiv.id = 'kaipoke-assistant-popup';
   floatingDiv.innerHTML = `
     <div class="kaipoke-assistant-header">
-      <span>カイポケアシスタント</span>
-      <button id="kaipoke-assistant-close">×</button>
+    <span>カイポケアシスタント</span>
+    <button id="kaipoke-assistant-close">×</button>
     </div>
     <div id="kaipoke-assistant-content">
-      <button id="fetchUsers">ユーザーリスト取得</button>
-      <div id="userList"></div>
-      <button id="executeReflection" disabled>実行</button>
-      <button id="cancelReflection" disabled>解除</button>
-      <button id="selectAll" disabled>全選択</button>
+    <div class="left-content">
+        <button id="fetchUsers">ユーザーリスト取得</button>
+        <div id="userList"></div>
+        <button id="executeReflection" disabled>実行</button>
+        <button id="cancelReflection" disabled>解除</button>
+        <button id="selectAll" disabled>全選択</button>
+    </div>
+    <div class="right-content">
+        <div id="progressStatus">進行状況: 0/0</div>
+        <div id="errorLog">エラーログ:</div>
+    </div>
     </div>
   `;
   document.body.appendChild(floatingDiv);
@@ -63,6 +89,8 @@ function showFloatingPopup() {
   makeDraggable(floatingDiv);
   // ボタンの有効無効を更新
   updateButtonState();
+  // 進行状況とエラーログの初期表示
+  updateStatus();
   // 状態を保存
   savePopupState();
 }
@@ -230,6 +258,66 @@ function updateButtonState() {
   savePopupState();
 }
 
+// 進行状況とエラーログを更新する関数
+function updateStatus() {
+    chrome.runtime.sendMessage({ action: "getStatus" }, (response) => {
+      const { progressStatus, errorLog } = response;
+      const progressStatusElement = document.getElementById('progressStatus');
+      const errorLogElement = document.getElementById('errorLog');
+  
+      progressStatusElement.textContent = `進行状況: ${progressStatus.completed}/${progressStatus.total}`;
+      if (progressStatus.completed === progressStatus.total) {
+        progressStatusElement.textContent += ' (完了)';
+      }
+  
+      errorLogElement.innerHTML = 'エラーログ:';
+      errorLog.forEach(error => {
+        errorLogElement.innerHTML += `<br>${getUserNameById(error.userId)}: ${error.message}`;
+      });
+    });
+}
+
+// userIdからuserNameを取得する関数
+function getUserNameById(userId) {
+    // kaipoke-assistant-content idを持つdiv要素を見つける
+    const contentDiv = document.getElementById('kaipoke-assistant-content');
+  
+    if (contentDiv) {
+      // 指定されたuserIdに一致する要素を探す（contentDiv内で検索）
+      const userElement = contentDiv.querySelector(`#user-${userId}`);
+  
+      if (userElement) {
+        // 対応するlabel要素を見つける（contentDiv内で検索）
+        const labelElement = contentDiv.querySelector(`label[for="user-${userId}"]`);
+        
+        if (labelElement) {
+          // label要素のテキスト内容（ユーザー名）を返す
+          return labelElement.textContent;
+        }
+      }
+    }
+  
+    // ユーザーが見つからない場合、またはkaipoke-assistant-contentが見つからない場合はnullを返す
+    return null;
+}
+
+// 指定したuserIdのチェックボックスを外す関数
+function uncheckUserCheckbox(userId) {
+    const container = document.getElementById('kaipoke-assistant-popup');
+    if (!container) {
+      console.log('Container element not found.');
+      return;
+    }
+  
+    const checkbox = container.querySelector(`#user-${userId}`);
+    if (checkbox) {
+      checkbox.checked = false;
+      savePopupState();
+    } else {
+      console.log(`User with ID ${userId} not found in the specified container.`);
+    }
+  }
+
 // 実行と解除ボタンの実行関数
 function handleReflection(action) {
     const checkedUsers = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
@@ -237,7 +325,7 @@ function handleReflection(action) {
       alert('ユーザーが選択されていません。');
       return;
     }
-  
+
     const confirmMessage = action === 'execute' ? '選択されたユーザーの予実反映を実行しますか？' : '選択されたユーザーの予実反映を解除しますか？';
     if (confirm(confirmMessage)) {
       if (action === 'execute') {
@@ -277,5 +365,7 @@ export {
     showFloatingPopup,
     restorePopupState,
     makeDraggable,
+    updateStatus,
+    uncheckUserCheckbox
     // 必要に応じて他の関数もここにリストアップ
 };

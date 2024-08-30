@@ -24,13 +24,7 @@ async function main() {
     await UI.restorePopupState();
     setupMessageListener();
 
-    (function() {
-      const originalConfirm = window.confirm;
-      window.confirm = function(message) {
-          console.log('Confirm dialog detected:', message);
-          return originalConfirm(message);
-      };
-    })();
+    
 
 
     function setupMessageListener() {
@@ -43,6 +37,9 @@ async function main() {
         try {
           let result;
           switch (request.action) {
+            case "fetchFixResult":
+              result = await ReflectionHandler.fetchFixResult();
+              break;
             case "checkContentScriptReady":
               // コンテンツスクリプトの準備状態を確認するための新しいケース
               result = { ready: true };
@@ -76,6 +73,14 @@ async function main() {
               break;
             case "showFloatingPopup":
               await UI.showFloatingPopup();
+              result = { success: true };
+              break;
+            case "updateStatus":
+              await UI.updateStatus();
+              result = { success: true };
+              break;
+            case "uncheckUserCheckbox":
+              await UI.uncheckUserCheckbox(request.userId);
               result = { success: true };
               break;
             // デバックゾーン

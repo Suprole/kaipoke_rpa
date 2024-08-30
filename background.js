@@ -7,6 +7,8 @@
 let currentUrl = '';
 let currentTabId = null;
 let isLoadedContentScript = false; 
+let progressStatus = { completed: 0, total: 0 };
+let errorLog = [];
 
 // 選択されたユーザー全体に対する確定実行管理関数
 async function manageFixReflection(userIds) {
@@ -16,9 +18,26 @@ async function manageFixReflection(userIds) {
       throw new Error('月間スケジュール管理ページ以外で行おうとしています。')
     }
 
+    progressStatus = { completed: 0, total: userIds.length };
+    errorLog = [];
+    updatePopup();
+
     for (const userId of userIds) {
-      await fixProcessUser(userId);
+      try {
+        const result = await fixProcessUser(userId);
+        progressStatus.completed++;
+        if (result.status !== 'success') {
+          errorLog.push({ userId, message: result.message });
+        }
+      } catch (error) {
+        errorLog.push({ userId, message: error.message });
+      }
+      await waitForTabUpdate(currentTabId);
+      await sendMessageWithRetry(currentTabId, { action: "uncheckUserCheckbox", userId: userId });
+      await waitForTabUpdate(currentTabId);
+      await updatePopup();
     }
+
     return { success: true, message: "予実反映の確定が完了しました。" };
   } catch (error) {
     console.error("Error in manageFixReflection:", error);
@@ -34,9 +53,24 @@ async function manageCancelReflection(userIds) {
       throw new Error('月間スケジュール管理ページ以外で行おうとしています。')
     }
 
+    progressStatus = { completed: 0, total: userIds.length };
+    errorLog = [];
+    updatePopup();
+
     for (const userId of userIds) {
-      await cancelProcessUser(userId);
+      try {
+        await cancelProcessUser(userId);
+        progressStatus.completed++;
+      } catch (error) {
+        errorLog.push({ userId, message: error.message });
+      }
+      await waitForTabUpdate(currentTabId);
+      await sendMessageWithRetry(currentTabId, { action: "uncheckUserCheckbox", userId: userId });
+      await waitForTabUpdate(currentTabId);
+      await updatePopup();
     }
+
+
     return { success: true, message: "予実反映の解除が完了しました。" };
   } catch (error) {
     console.error("Error in manageCancelReflection:", error);
@@ -47,6 +81,7 @@ async function manageCancelReflection(userIds) {
 // 一つのuserIdに対する解除の管理関数
 async function fixProcessUser(userId) {
   try {
+    await new Promise(resolve => setTimeout(resolve, 100));
     await waitForTabUpdate(currentTabId);
     console.log(0)
     
@@ -67,7 +102,10 @@ async function fixProcessUser(userId) {
     // 「介」以外の場合は次のユーザーへスキップ
     if (responseInsuranceCategory.result.result !== '介'){
       console.log('介護保険適用者ではありません。次のユーザーへスキップします。');
-      return;
+      return { 
+        status: 'success',
+        message: 'スキップしたユーザーです。'
+      };
     }
     
 
@@ -110,7 +148,7 @@ async function fixProcessUser(userId) {
 
     // 実績確定ボタンをおしつつ状態を確認
     const fixResult = await sendMessageWithRetry(currentTabId, { action: "clickFixActualButton", });
-    console.log(1, fixResult)
+    console.log(fixResult)
 
 
     if (fixResult.result.status === 'fixActual'){
@@ -121,6 +159,14 @@ async function fixProcessUser(userId) {
       console.log(6)
     }
 
+    //確認ログから実行結果を取得
+    const result = await sendMessageWithRetry(currentTabId, { action: "fetchFixResult" });
+    console.log(result.result)
+
+
+    await waitForTabUpdate(currentTabId);
+    console.log(7)
+
 
     // リンクをクリックして月間スケジュール管理ページへ遷移
     console.log(`navigate to monthly schedule page`);
@@ -129,8 +175,10 @@ async function fixProcessUser(userId) {
 
     // ページ遷移後の安定を待つ
     await waitForContentScript();
-    console.log(7)    
+    console.log(8)    
 
+
+    return result.result;
 
   } catch (error) {
     console.error(`Error processing user ${userId}:`, error);
@@ -139,32 +187,13 @@ async function fixProcessUser(userId) {
 }
 
 
-// 選択されたユーザー全体に対する解除実行管理関数
-async function manageCancelReflection(userIds) {
-  try {
-    if (!currentUrl.startsWith('https://r.kaipoke.biz/bizhnc/monthlyShiftsList')){
-      console.log('月間スケジュール管理ページ以外で行おうとしています。')
-      throw new Error('月間スケジュール管理ページ以外で行おうとしています。')
-    }
-
-    for (const userId of userIds) {
-      await cancelProcessUser(userId);
-    }
-    return { success: true, message: "予実反映の解除が完了しました。" };
-  } catch (error) {
-    console.error("Error in manageCancelReflection:", error);
-    return { success: false, message: `予実反映の解除中にエラーが発生しました: ${error.message}` };
-  }
-}
-
 // 一つのuserIdに対する解除の管理関数
 async function cancelProcessUser(userId) {
   try {
+    await new Promise(resolve => setTimeout(resolve, 100));
     await waitForTabUpdate(currentTabId);
     console.log(0)    
-    
 
-    
     
     // 一致しない場合はプルダウンから変更し、遷移を待つ
     console.log(`Changing user to ${userId}`);
@@ -258,6 +287,15 @@ async function cancelProcessUser(userId) {
 
 
 // 関数定義
+// ポップアップを更新する関数
+async function updatePopup() {
+  await sendMessageWithRetry(currentTabId, {
+    action: "updateStatus",
+    progressStatus,
+    errorLog
+  });
+}
+
 // 実行ボタンがおされると走る
 function startAllFixReflectionListener(tabId, userIds) {
   currentTabId = tabId;
@@ -390,6 +428,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  // 進行状況とエラーログの取得要求を受け取ったとき
+  if (request.action === "getStatus") {
+    sendResponse({ progressStatus, errorLog });
+    return true;
+  }
 
   // ページ読み込み完了を受け取ったとき
   if (request.action === "contentScriptReady") {
