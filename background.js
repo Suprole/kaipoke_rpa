@@ -43,7 +43,7 @@ async function manageCancelReflection(userIds) {
     return { success: false, message: `予実反映の解除中にエラーが発生しました: ${error.message}` };
   }
 }
-
+// test commit
 // 一つのuserIdに対する解除の管理関数
 async function fixProcessUser(userId) {
   try {
