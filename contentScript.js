@@ -32,11 +32,9 @@ async function main() {
       };
     })();
 
-
     function setupMessageListener() {
       chrome.runtime.onMessage.addListener(handleMessage);
     }
-
     
     function handleMessage(request, sender, sendResponse) {
       const handleAction = async () => {
@@ -44,7 +42,6 @@ async function main() {
           let result;
           switch (request.action) {
             case "checkContentScriptReady":
-              // コンテンツスクリプトの準備状態を確認するための新しいケース
               result = { ready: true };
               break;
             case "clickFixActualButton":
@@ -78,8 +75,16 @@ async function main() {
               await UI.showFloatingPopup();
               result = { success: true };
               break;
+            // 新しく追加されたケース
+            case "clickCalculateButton":
+              result = await ReflectionHandler.clickCalculateButton();
+              break;
+            case "clickCreateReceiptButton":
+              result = await ReflectionHandler.clickCreateReceiptButton();
+              break;
             // デバックゾーン
-            
+            default:
+              throw new Error(`Unknown action: ${request.action}`);
           }
           return { success: true, result };
         } catch (error) {
@@ -105,7 +110,3 @@ async function main() {
 
 // メイン関数の実行
 main();
-
-
-
-
