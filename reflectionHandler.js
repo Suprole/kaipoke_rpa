@@ -160,7 +160,29 @@ async function checkInsuranceCategory() {
     }
 }
 
+// ... (前のコードは省略) ...
 
+// 「算定する」ボタンをクリックする関数
+async function clickCalculateButton() {
+  try {
+      const button = await waitForElement('#form\\:calculate');
+      button.click();
+      return { status: 'success', message: '算定するボタンをクリックしました。' };
+  } catch (error) {
+      throw new Error('算定するボタンが見つかりません。');
+  }
+}
+
+// 「レセプト作成する」ボタンをクリックする関数
+async function clickCreateReceiptButton() {
+  try {
+      const button = await waitForElement('#form\\:createReceipt');
+      button.click();
+      return { status: 'success', message: 'レセプト作成するボタンをクリックしました。' };
+  } catch (error) {
+      throw new Error('レセプト作成するボタンが見つかりません。');
+  }
+}
 
 export { 
     clickFixActualButton,
@@ -171,5 +193,7 @@ export {
     clickPlanActualLink, 
     changePulldownUser, 
     checkInsuranceCategory, 
-    checkSelectedUser
+    checkSelectedUser,
+    clickCalculateButton,
+    clickCreateReceiptButton
 };

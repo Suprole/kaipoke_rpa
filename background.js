@@ -44,93 +44,34 @@ async function manageCancelReflection(userIds) {
   }
 }
 
-// 一つのuserIdに対する解除の管理関数
+// ... (前のコードは省略) ...
+
 async function fixProcessUser(userId) {
   try {
     await waitForTabUpdate(currentTabId);
-    console.log(0)
+    console.log(`Processing user: ${userId}`);
     
     // プルダウンからユーザーを変更する
     console.log(`Changing user to ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "changePulldownUser", userId: userId });
     console.log('User changed, waiting for page to stabilize');
     
-    
     await waitForContentScript();
-    console.log(1)
-    
     
     // 保険区分をチェック
     const responseInsuranceCategory = await sendMessageWithRetry(currentTabId, { action: "checkInsuranceCategory" });
-    console.log(responseInsuranceCategory.result);
+    console.log(`Insurance category for user ${userId}: ${responseInsuranceCategory.result.result}`);
     
-    // 「介」以外の場合は次のユーザーへスキップ
-    if (responseInsuranceCategory.result.result !== '介'){
-      console.log('介護保険適用者ではありません。次のユーザーへスキップします。');
-      return;
+    switch(responseInsuranceCategory.result.result) {
+      case '介':
+        await processNursingCareUser(userId);
+        break;
+      case '医':
+        await processMedicalUser(userId);
+        break;
+      default:
+        console.log(`Skipping user ${userId} due to unsupported insurance category: ${responseInsuranceCategory.result.result}`);
     }
-    
-
-    await waitForTabUpdate(currentTabId);
-    console.log(2)
-
-
-    try {
-      // ボタンをクリックして予定管理に実績を反映させる
-      console.log("click reflect Actual Button");
-      const responseClickReflectionActualButton = await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton", });
-      console.log(responseClickReflectionActualButton.result)
-      
-      if (responseClickReflectionActualButton.result.status === 'buttonDisabled') {
-        await waitForTabUpdate(currentTabId);
-        console.log(3)
-      } else {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        await waitForContentScript();
-        console.log(3)
-      }
-
-    } catch (error) {
-      console.error('Error occurred while clicking cancel button:', error);
-      await waitForContentScript();
-      console.log(4)
-    }
-
-    
-
-    // リンクをクリックして予定実績管理ページへ遷移
-    console.log(`navigate to plan actual page`);
-    await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink", });
-    console.log('waiting for page to stabilize');
-    
-    
-    await waitForContentScript();
-    console.log(5)
-
-
-    // 実績確定ボタンをおしつつ状態を確認
-    const fixResult = await sendMessageWithRetry(currentTabId, { action: "clickFixActualButton", });
-    console.log(1, fixResult)
-
-
-    if (fixResult.result.status === 'fixActual'){
-      await waitForContentScript();
-      console.log(6)
-    } else {
-      await waitForTabUpdate(currentTabId);
-      console.log(6)
-    }
-
-
-    // リンクをクリックして月間スケジュール管理ページへ遷移
-    console.log(`navigate to monthly schedule page`);
-    await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink", });
-    console.log('waiting for page to stabilize');
-
-    // ページ遷移後の安定を待つ
-    await waitForContentScript();
-    console.log(7)    
-
 
   } catch (error) {
     console.error(`Error processing user ${userId}:`, error);
@@ -138,22 +79,82 @@ async function fixProcessUser(userId) {
   }
 }
 
-
-// 選択されたユーザー全体に対する解除実行管理関数
-async function manageCancelReflection(userIds) {
+async function processNursingCareUser(userId) {
+  console.log(`Processing nursing care user: ${userId}`);
   try {
-    if (!currentUrl.startsWith('https://r.kaipoke.biz/bizhnc/monthlyShiftsList')){
-      console.log('月間スケジュール管理ページ以外で行おうとしています。')
-      throw new Error('月間スケジュール管理ページ以外で行おうとしています。')
+    // ボタンをクリックして予定管理に実績を反映させる
+    console.log("Clicking reflect Actual Button");
+    const responseClickReflectionActualButton = await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton" });
+    console.log(responseClickReflectionActualButton.result);
+    
+    if (responseClickReflectionActualButton.result.status === 'buttonDisabled') {
+      await waitForTabUpdate(currentTabId);
+    } else {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await waitForContentScript();
     }
 
-    for (const userId of userIds) {
-      await cancelProcessUser(userId);
+    // リンクをクリックして予定実績管理ページへ遷移
+    console.log(`Navigating to plan actual page`);
+    await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink" });
+    console.log('Waiting for page to stabilize');
+    
+    await waitForContentScript();
+
+    // 実績確定ボタンをおしつつ状態を確認
+    const fixResult = await sendMessageWithRetry(currentTabId, { action: "clickFixActualButton" });
+    console.log("Fix result:", fixResult);
+
+    if (fixResult.result.status === 'fixActual'){
+      await waitForContentScript();
+    } else {
+      await waitForTabUpdate(currentTabId);
     }
-    return { success: true, message: "予実反映の解除が完了しました。" };
+
+    // リンクをクリックして月間スケジュール管理ページへ遷移
+    console.log(`Navigating to monthly schedule page`);
+    await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink" });
+    console.log('Waiting for page to stabilize');
+
+    // ページ遷移後の安定を待つ
+    await waitForContentScript();
+
   } catch (error) {
-    console.error("Error in manageCancelReflection:", error);
-    return { success: false, message: `予実反映の解除中にエラーが発生しました: ${error.message}` };
+    console.error(`Error processing nursing care user ${userId}:`, error);
+    throw error;
+  }
+}
+
+async function processMedicalUser(userId) {
+  console.log(`Processing medical user: ${userId}`);
+  try {
+    // 1. 「予定実績管理へ」をクリック
+    console.log(`Clicking plan actual link for user ${userId}`);
+    await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink" });
+    
+    await waitForContentScript();
+    
+    // 2. 「算定する」ボタンを押す
+    console.log(`Clicking calculate button for user ${userId}`);
+    await sendMessageWithRetry(currentTabId, { action: "clickCalculateButton" });
+    
+    await waitForContentScript();
+    
+    // 3. 「レセプト作成する」ボタンを押す
+    console.log(`Clicking create receipt button for user ${userId}`);
+    await sendMessageWithRetry(currentTabId, { action: "clickCreateReceiptButton" });
+    
+    await waitForContentScript();
+    
+    // 4. 元のページに戻る
+    console.log(`Returning to monthly schedule page for user ${userId}`);
+    await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink" });
+    
+    await waitForContentScript();
+    
+  } catch (error) {
+    console.error(`Error processing medical user ${userId}:`, error);
+    throw error;
   }
 }
 
