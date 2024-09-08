@@ -27,7 +27,7 @@ async function waitForElement(selector, maxAttempts = MAX_ATTEMPTS) {
 async function clickFixActualButton() {
   try {
     const buttonConfirm = await waitForElement('#form\\:btnFixActual');
-    //buttonConfirm.click();
+    buttonConfirm.click();
     console.log("実績確定ボタンをクリックした");
     return { status: 'fixActual', message: '実績確定ボタンを正常にクリックしました。' };
   } catch (error) {
@@ -47,7 +47,7 @@ async function clickReflectActualButton() {
     if (button.hasAttribute('disabled')) {
       return { status: 'buttonDisabled', message: '実績を反映ボタンは無効です' };
     } else {
-      //button.click();
+      button.click();
       console.log("実績反映ボタンをクリックした");
       return { status: 'reflectedActual', message: '実績を反映ボタンを押しました' };
     }
@@ -74,7 +74,7 @@ async function clickEnableAutoEstimateButton() {
       return { status: 'buttonDisabled', message: '算定するボタンは無効です' };
     } else {
       // ボタンをクリック
-      //button.click();
+      button.click();
       console.log("算定するボタンをクリックした");
       return { status: 'enabled', message: '算定するボタンを押しました' };
     }
@@ -94,7 +94,7 @@ async function clickEnableAutoRezeptButton() {
       return { status: 'buttonDisabled', message: 'レセプト作成ボタンは無効です' };
     } else {
       // ボタンをクリック
-      //button.click();
+      button.click();
       console.log("レセプト作成ボタンをクリックした");
       return { status: 'enabled', message: 'レセプト作成ボタンを押しました' };
     }
@@ -114,7 +114,7 @@ async function clickEnableAutoCancelRezeptButton() {
       return { status: 'buttonDisabled', message: 'レセプト削除ボタンは無効です' };
     } else {
       // ボタンをクリック
-      //button.click();
+      button.click();
       console.log("レセプト削除ボタンをクリックした")
       return { status: 'enabled', message: 'レセプト削除ボタンを押しました' };
     }
@@ -131,10 +131,10 @@ async function deleteServiceContent() {
   try {
     const link = await waitForElement('#form\\:j_id_jsp_75758182_306\\:0\\:j_id_jsp_75758182_328');
     console.log("サービス内容を削除ボタンをクリックした");
-    //link.click();
+    link.click();
 
     const deleteButton = await waitForElement('#formPopup\\:delete');
-    //deleteButton.click();
+    deleteButton.click();
     console.log("サービス内容を削除する")
 
     return { status: 'removeOne', message: 'サービス内容の一つを削除しました。' };
@@ -151,7 +151,7 @@ async function deleteServiceContent() {
 async function clickCancelActualButton() {
   try {
     const buttonRemove = await waitForElement('#form\\:removeActual');
-    //buttonRemove.click();
+    buttonRemove.click();
     console.log("実績解除ボタンをクリックした");
     return { status: 'canceldActual', message: '実績解除ボタンを正常にクリックしました。' };
   } catch (error) {
