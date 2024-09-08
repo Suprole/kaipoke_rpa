@@ -59,10 +59,10 @@ async function deleteServiceContent() {
     try {
         const link = await waitForElement('#form\\:j_id_jsp_75758182_306\\:0\\:j_id_jsp_75758182_328');
         link.click();
-        
+
         const deleteButton = await waitForElement('#formPopup\\:delete');
         deleteButton.click();
-        
+
         return { status: 'removeOne', message: 'サービス内容の一つを削除しました。' };
       } catch (error) {
         if (error.message.includes('not found after')) {
@@ -71,7 +71,7 @@ async function deleteServiceContent() {
         throw error;
     }
 }
-  
+
 
 // 実績解除ボタンをクリックする関数
 async function clickCancelActualButton() {
@@ -138,14 +138,14 @@ async function checkSelectedUser(userId) {
     }
 }
 
-// 現在ページに表示されているユーザーの保険区分をチェックして返す  
+// 現在ページに表示されているユーザーの保険区分をチェックして返す
 async function checkInsuranceCategory() {
   try {
       const careSpan = await waitForElement('.icon-care').catch(() => null);
-      
+
       if (careSpan && careSpan.textContent.trim() === "介") {
           return { result: "介", status: 'success', message: '保険区分をチェックしました。' };
-      } 
+      }
       const medicalSpan = await waitForElement('.icon-medical').catch(() => null);
       if (medicalSpan && medicalSpan.textContent.trim() === "医") {
         return { result: "医", status: 'success', message: '保険区分をチェックしました。' };

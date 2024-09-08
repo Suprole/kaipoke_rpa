@@ -8,7 +8,7 @@ async function importModules() {
     import(baseUrl + 'reflectionHandler.js'),
     import(baseUrl + 'popup.js')
   ]);
-  
+
   return {
     ReflectionHandler: ReflectionHandlerModule,
     UI: UIModule
@@ -19,7 +19,7 @@ async function importModules() {
 async function main() {
   try {
     const { ReflectionHandler, UI } = await importModules();
-    
+
     // ページ読み込み時の実行関数
     await UI.restorePopupState();
     setupMessageListener();
@@ -35,7 +35,7 @@ async function main() {
     function setupMessageListener() {
       chrome.runtime.onMessage.addListener(handleMessage);
     }
-    
+
     function handleMessage(request, sender, sendResponse) {
       const handleAction = async () => {
         try {
@@ -75,7 +75,7 @@ async function main() {
               await UI.showFloatingPopup();
               result = { success: true };
               break;
-            // 新しく追加されたケース
+            // 「医」の場合の処理に使う
             case "clickCalculateButton":
               result = await ReflectionHandler.clickCalculateButton();
               break;
@@ -92,7 +92,7 @@ async function main() {
           return { success: false, error: error.message };
         }
       };
-    
+
       handleAction().then(sendResponse).catch((error) => {
         console.error('Unhandled error in handleAction:', error);
         sendResponse({ success: false, error: 'Unhandled error occurred' });

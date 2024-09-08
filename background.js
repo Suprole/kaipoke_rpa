@@ -43,24 +43,24 @@ async function manageCancelReflection(userIds) {
   }
 }
 
-// ... (前のコードは省略) ...
-
+//医療保険追加版
 async function fixProcessUser(userId) {
   try {
     await waitForTabUpdate(currentTabId);
     console.log(`Processing user: ${userId}`);
-    
+
     // プルダウンからユーザーを変更する
     console.log(`Changing user to ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "changePulldownUser", userId: userId });
     console.log('User changed, waiting for page to stabilize');
-    
+
+    //これしないと「医」でも「介」で取られる時がある
     await waitForNavigation(currentTabId);
-    
+
     // 保険区分をチェック
     const responseInsuranceCategory = await sendMessageWithRetry(currentTabId, { action: "checkInsuranceCategory" });
     console.log(`Insurance category for user ${userId}: ${responseInsuranceCategory.result.result}`);
-    
+
     switch(responseInsuranceCategory.result.result) {
       case '介':
         await processNursingCareUser(userId);
@@ -85,7 +85,7 @@ async function processNursingCareUser(userId) {
     console.log("Clicking reflect Actual Button");
     const responseClickReflectionActualButton = await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton" });
     console.log(responseClickReflectionActualButton.result);
-    
+
     if (responseClickReflectionActualButton.result.status === 'buttonDisabled') {
       await waitForTabUpdate(currentTabId);
     } else {
@@ -97,7 +97,7 @@ async function processNursingCareUser(userId) {
     console.log(`Navigating to plan actual page`);
     await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink" });
     console.log('Waiting for page to stabilize');
-    
+
     await waitForContentScript();
 
     // 実績確定ボタンをおしつつ状態を確認
@@ -124,63 +124,59 @@ async function processNursingCareUser(userId) {
   }
 }
 
+//waitForNavigationで安定化x
 async function processMedicalUser(userId) {
   console.log(`Processing medical user: ${userId}`);
   try {
     // 1. 「予定実績管理へ」をクリック
     console.log(`Clicking plan actual link for user ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink" });
-    
+
     await waitForNavigation(currentTabId);
-    
+
     // 2. 「算定する」ボタンを押す
     console.log(`Clicking calculate button for user ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "clickCalculateButton" });
-    
+
     await waitForNavigation(currentTabId);
-    
+
     // 3. 「レセプト作成する」ボタンを押す
     console.log(`Clicking create receipt button for user ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "clickCreateReceiptButton" });
-    
+
     await waitForNavigation(currentTabId);
-    
+
     // 4. 元のページに戻る
     console.log(`Returning to monthly schedule page for user ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink" });
-    
+
     await waitForNavigation(currentTabId);
-    
+
   } catch (error) {
     console.error(`Error processing medical user ${userId}:`, error);
     throw error;
   }
 }
 
-// ... (後のコードは省略) ...
-
 // 一つのuserIdに対する解除の管理関数
 async function cancelProcessUser(userId) {
   try {
     await waitForTabUpdate(currentTabId);
-    console.log(0)    
-    
+    console.log(0)
 
-    
-    
     // 一致しない場合はプルダウンから変更し、遷移を待つ
     console.log(`Changing user to ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "changePulldownUser", userId: userId });
     console.log('User changed, waiting for page to stabilize');
-    
+
     // ページ遷移後の安定を待つ
     await waitForContentScript();
-    console.log(1)    
-    
+    console.log(1)
+
     // 保険区分をチェック
     const responseInsuranceCategory = await sendMessageWithRetry(currentTabId, { action: "checkInsuranceCategory", });
     console.log(responseInsuranceCategory.result.result);
-    
+
     // 「介」以外の場合は次のユーザーへスキップ
     if (responseInsuranceCategory.result.result !== '介'){
       console.log('介護保険適用者ではありません。次のユーザーへスキップします。');
@@ -191,10 +187,9 @@ async function cancelProcessUser(userId) {
     console.log(`navigate to plan actual page`);
     await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink", });
     console.log('waiting for page to stabilize');
-    
-    
+
     await waitForContentScript();
-    console.log(2)    
+    console.log(2)
 
 
     // 実績管理ページの実績が完全になくなるまで以下を繰り返す
@@ -204,15 +199,15 @@ async function cancelProcessUser(userId) {
     while (cancelStatus !== 'notExistActual') {
       try {
         await waitForTabUpdate(currentTabId);
-        console.log(3)    
+        console.log(3)
 
         // 実績ボタンを解除しつつ状態を確認
         const cancelResult = await sendMessageWithRetry(currentTabId, { action: "clickCancelActualButton" });
         console.log(5, cancelResult)
-        
+
         if(cancelResult.result.status === 'canceldActual'){
           await waitForContentScript();
-          console.log(4)    
+          console.log(4)
         } else {
           await waitForTabUpdate(currentTabId);
           console.log(4)
@@ -222,16 +217,16 @@ async function cancelProcessUser(userId) {
         cancelStatus = cancelResult.result.status;
         console.log(6, cancelStatus)
         console.log(`Cancel status: ${cancelStatus}, Message: ${cancelResult.result.message}`);
-        
+
         // 全ての実績がない状態になればwhileをbreak
         if (cancelStatus === 'notExistActual') {
           break;
         }
-        
+
         // サービス内容の削除処理
         console.log(`delete Service Contents`);
         await sendMessageWithRetry(currentTabId, { action: "deleteServiceContent", });
-        
+
         await waitForContentScript();
         console.log(5)
 
@@ -336,7 +331,7 @@ async function ensureTabIsActive(tabId) {
 function waitForContentScript(timeout = 10000) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
-    
+
     function checkLoadStatus() {
       if (isLoadedContentScript) {
         isLoadedContentScript = false;
@@ -347,7 +342,7 @@ function waitForContentScript(timeout = 10000) {
         setTimeout(checkLoadStatus, 100); // 100ミリ秒ごとに再チェック
       }
     }
-    
+
     checkLoadStatus();
   });
 }
@@ -375,7 +370,7 @@ async function sendMessageWithRetry(tabId, message, maxRetries = 3) {
 
 
 // ブラウザ動作関連
-// タブの更新を監視
+// タブの更新を監視。独立して動作する
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url && tab.url.startsWith('https://r.kaipoke.biz/')) {
     currentUrl = tab.url;
@@ -383,7 +378,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     console.log('Current URL updated:', currentUrl);
   }
 });
-
 
 // 拡張機能がクリックされると、フローティングポップアップを表示する
 chrome.action.onClicked.addListener((tab) => {
@@ -424,7 +418,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
-
   // ページ読み込み完了を受け取ったとき
   if (request.action === "contentScriptReady") {
     currentTabId = sender.tab.id;
@@ -432,4 +425,3 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true
   }
 });
-
