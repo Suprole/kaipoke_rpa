@@ -1,4 +1,3 @@
-// 拡張機能のバックエンドファイル
 // ページ更新とかに関係なく常駐している
 // 自動操作の進行管理はここで行う
 
@@ -56,7 +55,7 @@ async function fixProcessUser(userId) {
     await sendMessageWithRetry(currentTabId, { action: "changePulldownUser", userId: userId });
     console.log('User changed, waiting for page to stabilize');
     
-    await waitForContentScript();
+    await waitForNavigation(currentTabId);
     
     // 保険区分をチェック
     const responseInsuranceCategory = await sendMessageWithRetry(currentTabId, { action: "checkInsuranceCategory" });
@@ -132,31 +131,33 @@ async function processMedicalUser(userId) {
     console.log(`Clicking plan actual link for user ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink" });
     
-    await waitForContentScript();
+    await waitForNavigation(currentTabId);
     
     // 2. 「算定する」ボタンを押す
     console.log(`Clicking calculate button for user ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "clickCalculateButton" });
     
-    await waitForContentScript();
+    await waitForNavigation(currentTabId);
     
     // 3. 「レセプト作成する」ボタンを押す
     console.log(`Clicking create receipt button for user ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "clickCreateReceiptButton" });
     
-    await waitForContentScript();
+    await waitForNavigation(currentTabId);
     
     // 4. 元のページに戻る
     console.log(`Returning to monthly schedule page for user ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink" });
     
-    await waitForContentScript();
+    await waitForNavigation(currentTabId);
     
   } catch (error) {
     console.error(`Error processing medical user ${userId}:`, error);
     throw error;
   }
 }
+
+// ... (後のコードは省略) ...
 
 // 一つのuserIdに対する解除の管理関数
 async function cancelProcessUser(userId) {
@@ -288,6 +289,38 @@ function waitForTabUpdate(tabId) {
       }
     });
   });
+}
+
+// ページ遷移の完了を待機する関数
+function waitForNavigation(tabId, timeout = 30000) {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+
+    const navigationListener = (details) => {
+      if (details.tabId === tabId && details.frameId === 0) {
+        chrome.webNavigation.onCompleted.removeListener(navigationListener);
+        console.log("遷移完了")
+        resolve(details.url);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      chrome.webNavigation.onCompleted.removeListener(navigationListener);
+      reject(new Error("Navigation timeout"));
+    }, timeout);
+
+    chrome.webNavigation.onCompleted.addListener(navigationListener);
+
+    // タブが存在しない場合のエラーハンドリング
+    chrome.tabs.get(tabId, (tab) => {
+      if (chrome.runtime.lastError) {
+        clearTimeout(timeoutId);
+        chrome.webNavigation.onCompleted.removeListener(navigationListener);
+        reject(new Error(`Tab ${tabId} does not exist`));
+      }
+    });
+  });
+
 }
 
 // タブの状態を確認して必要に応じてリロードする

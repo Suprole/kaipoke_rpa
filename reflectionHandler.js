@@ -137,35 +137,32 @@ async function checkSelectedUser(userId) {
         throw new Error('選択されているユーザーの確認に失敗しました。');
     }
 }
-  
 
 // 現在ページに表示されているユーザーの保険区分をチェックして返す  
 async function checkInsuranceCategory() {
-    try {
-        const careSpan = await waitForElement('.icon-care').catch(() => null);
-        
-        if (careSpan && careSpan.textContent.trim() === "介") {
-            return { result: "介", status: 'success', message: '保険区分をチェックしました。' };
-        } 
-        const medicalSpan = await waitForElement('.icon-medical').catch(() => null);
-        if (medicalSpan && medicalSpan.textContent.trim() === "医") {
-          return { result: "医", status: 'success', message: '保険区分をチェックしました。' };
-        } else if (!careSpan && !medicalSpan) {
-          return { result: "なし", status: 'success', message: '保険区分をチェックしました。' };
-        } else {
-          return { result: "不明", status: 'success', message: '保険区分をチェックしました。' };
-        }
-      } catch (error) {
-        throw new Error('保険区分の確認に失敗しました。');
-    }
+  try {
+      const careSpan = await waitForElement('.icon-care').catch(() => null);
+      
+      if (careSpan && careSpan.textContent.trim() === "介") {
+          return { result: "介", status: 'success', message: '保険区分をチェックしました。' };
+      } 
+      const medicalSpan = await waitForElement('.icon-medical').catch(() => null);
+      if (medicalSpan && medicalSpan.textContent.trim() === "医") {
+        return { result: "医", status: 'success', message: '保険区分をチェックしました。' };
+      } else if (!careSpan && !medicalSpan) {
+        return { result: "なし", status: 'success', message: '保険区分をチェックしました。' };
+      } else {
+        return { result: "不明", status: 'success', message: '保険区分をチェックしました。' };
+      }
+    } catch (error) {
+      throw new Error('保険区分の確認に失敗しました。');
+  }
 }
-
-// ... (前のコードは省略) ...
 
 // 「算定する」ボタンをクリックする関数
 async function clickCalculateButton() {
   try {
-      const button = await waitForElement('#form\\:calculate');
+      const button = await waitForElement('#form\\:btnEnableAutoEstimate');
       button.click();
       return { status: 'success', message: '算定するボタンをクリックしました。' };
   } catch (error) {
@@ -176,7 +173,7 @@ async function clickCalculateButton() {
 // 「レセプト作成する」ボタンをクリックする関数
 async function clickCreateReceiptButton() {
   try {
-      const button = await waitForElement('#form\\:createReceipt');
+      const button = await waitForElement('#form\\:btnEnableReceiptCheck');
       button.click();
       return { status: 'success', message: 'レセプト作成するボタンをクリックしました。' };
   } catch (error) {
