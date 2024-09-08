@@ -22,6 +22,290 @@ async function waitForElement(selector, maxAttempts = MAX_ATTEMPTS) {
   });
 }
 
+
+
+// ユーティリティ関数: 複数の要素が見つかるまで待機
+async function waitForElementAll(selector, maxAttempts = MAX_ATTEMPTS) {
+    return new Promise((resolve, reject) => {
+      let attempts = 0;
+      const checkElements = () => {
+        attempts++;
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {
+          resolve(Array.from(elements));
+        } else if (attempts < maxAttempts) {
+          setTimeout(checkElements, RETRY_DELAY);
+        } else {
+          reject(new Error(`${maxAttempts}回の試行後も要素 ${selector} が見つかりませんでした`));
+        }
+      };
+      checkElements();
+    });
+}
+
+// ユーティリティ関数: str配列のうち、検索文字列を含むindexを返す関数
+const findIndicesMatchingAny = (arr, searchStrings) => {
+    // Set を使用して重複を自動的に除去
+    const matchingIndices = new Set();
+  
+    // 配列の各要素をチェック
+    arr.forEach((item, index) => {
+      // いずれかの検索文字列にマッチした場合、そのインデックスを追加
+      if (searchStrings.some(searchString => item.includes(searchString))) {
+        matchingIndices.add(index);
+      }
+    });
+  
+    // Set を配列に変換して返す
+    return Array.from(matchingIndices);
+};
+
+
+
+// 算定するボタンをクリックする関数
+async function clickCalculateButton() {
+  try {
+      const button = await waitForElement('#form\\:btnEnableAutoEstimate');
+      button.click();
+      return { status: 'clicked', message: '算定するボタンを正常にクリックしました。' };
+  } catch (error) {
+      return { status: 'failed', message: '算定するボタンが押せませんでした。' };
+  }
+}
+
+// レセプト作成ボタンをクリックする関数
+async function clickMakeReceiptButton() {
+  try {
+      const button = await waitForElement('#form\\:btnEnableReceiptCheck');
+      button.click();
+      return { status: 'clicked', message: 'レセプト作成ボタンを正常にクリックしました。' };
+  } catch (error) {
+      return { status: 'failed', message: 'レセプト作成ボタンが押せませんでした。' };
+  }
+}
+
+// レセプト削除ボタンをクリックする関数
+async function clickDeleteReceiptButton() {
+  try {
+      const button = await waitForElement('#form\\:btnCancelReceiptCheck');
+      button.click();
+      return { status: 'clicked', message: 'レセプト削除ボタンを正常にクリックしました。' };
+  } catch (error) {
+      return { status: 'failed', message: 'レセプト削除ボタンが押せませんでした。' };
+  }
+}
+
+
+// １年減算を登録する関数
+async function selectYearDeduction(isDeductionTarget, serviceContents) {
+    try {
+        const searchStrings = ["予訪看Ⅰ５"];
+        // 減算対象の訪問を取得
+        const indices = findIndicesMatchingAny(serviceContents, searchStrings)
+
+        // リハビリ減算対象の場合は以下を行う
+        if (isDeductionTarget) {
+            for (const index of indices) {
+                try {
+                    // チェックボックスを選択
+                    const checkbox = await waitForElement(`input[name="adjust-${index+1}-40"]`);
+                    // チェックを入れる
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                } catch (error) {
+                    console.error(`Error processing index ${index}:`, error);
+                }
+            }
+        } else {
+            for (const index of indices) {
+                try {
+                    // チェックボックスを選択
+                    const checkbox = await waitForElement(`input[name="adjust-${index+1}-39"]`);
+                    // チェックを入れる
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                } catch (error) {
+                    console.error(`Error processing index ${index}:`, error);
+                }
+            }
+        }
+
+        //登録ボタンをクリック
+        const registerButton = await waitForElement('#linkAddAdditionPopup');
+        registerButton.click();
+        
+        return { status: 'clicked', message: '正常にクリックしました。', indices: indices };
+      } catch (error) {
+        throw error;
+    }
+}
+
+// 1年減算対象ユーザーかどうかをチェック
+async function checkIsYearDeduction() {
+    // colspan="2"とclass="color-error"を持つtd要素を探す
+    const tdElement = await waitForElement('td[colspan="2"].color-error').catch(() => null);;
+    let isYearDeductionUser = false;
+
+    if (tdElement) {
+      // td要素内に特定のテキストと要素が含まれているか確認
+      const containsPreventiveText = tdElement.textContent.includes('予防訪問看護12月超減算');
+      const containsBaseYmTooltip = !!tdElement.querySelector('#preventiveRehabSubtractionBaseYmTooltip');
+      const containsBaseYmContents = !!tdElement.querySelector('#preventiveRehabSubtractionBaseYmContents');
+      
+      // すべての条件が満たされているか確認
+      isYearDeductionUser = containsPreventiveText && containsBaseYmTooltip && containsBaseYmContents;
+      console.log(isYearDeductionUser)
+    }
+    
+    return { status: 'checked', message: 'チェックしました', isYearDeductionUser: isYearDeductionUser};
+  }
+
+// 加算の「登録する」ボタンをクリックする関数
+async function clickFixAdditionButton() {
+    try {
+        //登録ボタンをクリック
+        const registerButton = await waitForElement('#linkAddAdditionPopup');
+        registerButton.click();
+        
+        return { status: 'clicked', message: '正常にクリックしました。'};
+    } catch (error) {
+        throw error;
+    }
+}
+
+// 加算のチェックボックスを全て外す関数
+async function removeAdditionCheckbox() {
+    try {
+        // テーブル内の全てのチェックボックスを選択
+        const checkboxes = document.querySelectorAll('#tableContent2 input[type="checkbox"]');
+        console.log(checkboxes);
+        
+        // 各チェックボックスのチェックを外す
+        let count = 0;
+
+        for (const checkbox of checkboxes) {
+            // 各チェックボックスのチェックを外す
+            checkbox.checked = false;
+            count++;
+
+            // 100ミリ秒ごとに処理を区切る
+            if (count % 10 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+        
+        return { status: 'removed', message: '正常に全てのチェックボックスを外しました。'};
+    } catch (error) {
+        throw error;
+    }
+}
+
+
+// 加算を登録する関数
+async function selectCareAddition(isDeductionTarget, serviceContents) {
+    try {
+        const searchStrings = ["訪看Ⅰ５", "予訪看Ⅰ５"];
+        // 減算対象の訪問を取得
+        const indices = findIndicesMatchingAny(serviceContents, searchStrings)
+
+        // リハビリ減算対象の場合は以下を行う
+        if (isDeductionTarget) {
+            for (const index of indices) {
+                try {
+                    // チェックボックスを選択
+                    const checkbox14 = await waitForElement(`input[name="adjust-${index+1}-14"]`).catch(() => null);
+                    const checkbox34 = await waitForElement(`input[name="adjust-${index+1}-34"]`).catch(() => null);
+                    // チェックを入れる
+                    if (checkbox14) {
+                        checkbox14.checked = true;
+                    }
+                    if (checkbox34) {
+                        checkbox34.checked = true;
+                    }
+                } catch (error) {
+                    console.error(`Error processing index ${index}:`, error);
+                }
+            }
+        }
+
+        //登録ボタンをクリック
+        const registerButton = await waitForElement('#linkAddAdditionPopup');
+        registerButton.click();
+        
+        return { status: 'clicked', message: '正常にクリックしました。', indices: indices };
+      } catch (error) {
+        throw error;
+    }
+}
+
+// 訪問内容テキストを取得し、「加算」ボタンをクリックする関数
+async function getServiceContentsAndClickAdditionButton() {
+    try {
+        // 訪問内容テキストを取得
+        const { careServiceContents, medicalServiceContents } = getServiceContents();
+
+        // 加算ボタンをクリック
+        const additionButton = await waitForElement('.table.table-bordered.user_table.table-tab1 .achieve-header button[title="加算"][onclick*="div_showAddition"]');
+        if (!additionButton) {
+            return { 
+                status: 'notfound',
+                message: 'ボタンが見つかりませんでした。', 
+                careServiceContents: careServiceContents, 
+                medicalServiceContents: medicalServiceContents
+            };
+        }
+        additionButton.click();
+        
+        return { 
+            status: 'clicked',
+            message: '正常にクリックしました。', 
+            careServiceContents: careServiceContents, 
+            medicalServiceContents: medicalServiceContents
+        };
+
+      } catch (error) {
+        throw error;
+    }
+}
+
+// 加算登録に使用する訪問内容テキストを取得する関数
+function getServiceContents() {
+    // テーブルを取得
+    const table = document.querySelector('.table.table-bordered.user_table.table-tab1');
+    // tbody内の全ての行を取得
+    const rows = table.querySelectorAll('tbody tr');
+    // サービス内容を格納する配列
+    const careServiceContents = [];
+    const medicalServiceContents = [];
+    
+    // 各行を処理
+    rows.forEach(row => {
+      // 実績側のセルを取得（10番目のセル、0から数えて9）
+      const achievementCell = row.cells[10];
+      if (achievementCell) {
+        // サービス内容を含む要素を取得
+        const careSpan = achievementCell.querySelector('.icon-care');
+        const medicalSpan = achievementCell.querySelector('.icon-medical');
+        const serviceNameElement = achievementCell.querySelector('.service-name');
+        if (careSpan) {
+          // テキスト内容を取得し、トリムして配列に追加
+          const serviceName = serviceNameElement.textContent.trim();
+          careServiceContents.push(serviceName);
+        }
+        if (medicalSpan) {
+          // テキスト内容を取得し、トリムして配列に追加
+          const serviceName = serviceNameElement.textContent.trim();
+          medicalServiceContents.push(serviceName);
+        }
+      }
+    });
+  
+    return { careServiceContents: careServiceContents, medicalServiceContents: medicalServiceContents };
+  }
+
+
 // 確定後のログを取得する関数
 async function fetchFixResult() {
     try {
@@ -182,11 +466,14 @@ async function checkSelectedUser(userId) {
 async function checkInsuranceCategory() {
     try {
         const careSpan = await waitForElement('.icon-care').catch(() => null);
+        const medicalSpan = await waitForElement('.icon-medical').catch(() => null);
         
+        if (medicalSpan && medicalSpan.textContent.trim() === "医" && careSpan && careSpan.textContent.trim() === "介") {
+            return { result: "両", status: 'success', message: '保険区分をチェックしました。' };
+        }
         if (careSpan && careSpan.textContent.trim() === "介") {
             return { result: "介", status: 'success', message: '保険区分をチェックしました。' };
         } 
-        const medicalSpan = await waitForElement('.icon-medical').catch(() => null);
         if (medicalSpan && medicalSpan.textContent.trim() === "医") {
           return { result: "医", status: 'success', message: '保険区分をチェックしました。' };
         } else if (!careSpan && !medicalSpan) {
@@ -211,5 +498,14 @@ export {
     changePulldownUser, 
     checkInsuranceCategory, 
     checkSelectedUser,
-    fetchFixResult
+    fetchFixResult,
+    selectCareAddition,
+    getServiceContentsAndClickAdditionButton,
+    removeAdditionCheckbox,
+    clickFixAdditionButton,
+    checkIsYearDeduction,
+    selectYearDeduction,
+    clickCalculateButton,
+    clickMakeReceiptButton,
+    clickDeleteReceiptButton
 };

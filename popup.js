@@ -2,24 +2,7 @@
 
 let floatingDiv = null;
 
-// ユーティリティ関数: 要素が見つかるまで待機
-async function waitForElement(selector, maxAttempts = MAX_ATTEMPTS) {
-    return new Promise((resolve, reject) => {
-      let attempts = 0;
-      const checkElement = () => {
-        attempts++;
-        const element = document.querySelector(selector);
-        if (element) {
-          resolve(element);
-        } else if (attempts < maxAttempts) {
-          setTimeout(checkElement, RETRY_DELAY);
-        } else {
-          reject(new Error(`Element ${selector} not found after ${maxAttempts} attempts`));
-        }
-      };
-      checkElement();
-    });
-}
+
 
 // ポップアップを表示
 function showFloatingPopup() {
@@ -39,28 +22,39 @@ function showFloatingPopup() {
   floatingDiv.id = 'kaipoke-assistant-popup';
   floatingDiv.innerHTML = `
     <div class="kaipoke-assistant-header">
-    <span>カイポケアシスタント</span>
-    <button id="kaipoke-assistant-close">×</button>
-    </div>
-    <div id="kaipoke-assistant-content">
-    <div class="left-content">
-        <button id="fetchUsers">ユーザーリスト取得</button>
-        <div id="userList"></div>
-        <button id="executeReflection" disabled>実行</button>
-        <button id="cancelReflection" disabled>解除</button>
-        <button id="selectAll" disabled>全選択</button>
-    </div>
-    <div class="right-content">
-        <div id="progressStatus">進行状況: 0/0</div>
-        <div id="errorLog">エラーログ:</div>
-    </div>
+      <span>カイポケアシスタント</span>
+      <button id="kaipoke-assistant-close">×</button>
+      </div>
+      <div id="kaipoke-assistant-content">
+      <div class="left-content">
+      <button id="fetchUsers">ユーザーリスト取得</button>
+      <div id="userList"></div>
+      <button id="executeReflection" disabled>実行</button>
+      <button id="cancelReflection" disabled>解除</button>
+      <button id="selectAll" disabled>全選択</button>
+      <button id="kaipoke-assistant-close">×</button>
+      <div>
+      <input type="checkbox" id="isDeductionTarget">
+      <label for="isDeductionTarget">減算対象事業所</label>
+      </div>
+      </div>
+      <div class="right-content">
+      <div id="progressStatus">進行状況: 0/0</div>
+      <div id="errorLog">エラーログ:</div>
+      </div>
     </div>
   `;
   document.body.appendChild(floatingDiv);
 
   // 閉じるボタン
-  const closeButton = floatingDiv.querySelector('#kaipoke-assistant-close');
-  closeButton.addEventListener('click', () => {
+  const closeButtonTop = floatingDiv.querySelectorAll('#kaipoke-assistant-close')[0];
+  closeButtonTop.addEventListener('click', () => {
+    floatingDiv.style.display = 'none';
+    savePopupState();
+  });
+  // 閉じるボタン
+  const closeButtonBottom = floatingDiv.querySelectorAll('#kaipoke-assistant-close')[1];
+  closeButtonBottom.addEventListener('click', () => {
     floatingDiv.style.display = 'none';
     savePopupState();
   });
@@ -76,6 +70,9 @@ function showFloatingPopup() {
   // チェックボックス動作追加
   const userListDiv = floatingDiv.querySelector('#userList');
   userListDiv.addEventListener('change', updateButtonState);
+
+  const deductionTargetCheckBox = document.getElementById('isDeductionTarget');
+  deductionTargetCheckBox.addEventListener('change', savePopupState);
   
   // 実行ボタン動作追加
   const executeButton = floatingDiv.querySelector('#executeReflection');
@@ -109,7 +106,8 @@ function savePopupState() {
       id: cb.value,
       name: cb.nextElementSibling.textContent,
       checked: cb.checked
-    }))
+    })),
+    isDeductionTarget: document.getElementById('isDeductionTarget').checked
   };
   localStorage.setItem('kaipoke-assistant-state', JSON.stringify(state));
 }
@@ -133,6 +131,7 @@ function restorePopupState() {
         });
         updateButtonState();
       }
+      document.getElementById('isDeductionTarget').checked = state.isDeductionTarget;
     }
   }
 }
@@ -326,10 +325,12 @@ function handleReflection(action) {
       return;
     }
 
+    const isDeductionTarget = document.getElementById('isDeductionTarget').checked;
+
     const confirmMessage = action === 'execute' ? '選択されたユーザーの予実反映を実行しますか？' : '選択されたユーザーの予実反映を解除しますか？';
     if (confirm(confirmMessage)) {
       if (action === 'execute') {
-        executeReflectionForUsers(checkedUsers);
+        executeReflectionForUsers(checkedUsers, isDeductionTarget);
       } else {
         cancelReflectionForUsers(checkedUsers);
       }
@@ -337,12 +338,13 @@ function handleReflection(action) {
 }
  
 // 実行のロジック関数
-async function executeReflectionForUsers(userIds) {
+async function executeReflectionForUsers(userIds, isDeductionTarget) {
     // background.jsにuserIdsを渡し、全体の確定開始を通知
     await new Promise((resolve) => {
         chrome.runtime.sendMessage({
           action: "startAllFixReflection",
-          userIds: userIds
+          userIds: userIds,
+          isDeductionTarget: isDeductionTarget
         }, resolve);
     });
 }
@@ -357,6 +359,9 @@ async function cancelReflectionForUsers(userIds) {
         }, resolve);
     });
 }
+
+// メッセージリスナー
+
 
 
 

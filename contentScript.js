@@ -37,6 +37,33 @@ async function main() {
         try {
           let result;
           switch (request.action) {
+            case "clickDeleteReceiptButton":
+              result = await ReflectionHandler.clickDeleteReceiptButton();
+              break;
+            case "clickMakeReceiptButton":
+              result = await ReflectionHandler.clickMakeReceiptButton();
+              break;
+            case "clickCalculateButton":
+              result = await ReflectionHandler.clickCalculateButton();
+              break;
+            case "selectYearDeduction":
+              result = await ReflectionHandler.selectYearDeduction();
+              break;
+            case "checkIsYearDeduction":
+              result = await ReflectionHandler.checkIsYearDeduction();
+              break;
+            case "clickFixAdditionButton":
+              result = await ReflectionHandler.clickFixAdditionButton();
+              break;
+            case "removeAdditionCheckbox":
+              result = await ReflectionHandler.removeAdditionCheckbox();
+              break;
+            case "selectCareAddition":
+              result = await ReflectionHandler.selectCareAddition(request.isDeductionTarget, request.serviceContents);
+              break;
+            case "getServiceContentsAndClickAdditionButton":
+              result = await ReflectionHandler.getServiceContentsAndClickAdditionButton();
+              break;
             case "fetchFixResult":
               result = await ReflectionHandler.fetchFixResult();
               break;
@@ -84,6 +111,7 @@ async function main() {
               result = { success: true };
               break;
             // デバックゾーン
+
             
           }
           return { success: true, result };
@@ -102,6 +130,8 @@ async function main() {
 
     // コンテンツスクリプトの準備完了を通知
     chrome.runtime.sendMessage({ action: "contentScriptReady" });
+
+    
 
   } catch (err) {
     console.error('Error in main function:', err);
