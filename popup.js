@@ -14,7 +14,7 @@ function showFloatingPopup() {
     return;
   }
 
-// divタグ作成
+  // divタグ作成
   floatingDiv = document.createElement('div');
   floatingDiv.id = 'kaipoke-assistant-popup';
   floatingDiv.innerHTML = `
@@ -42,15 +42,15 @@ function showFloatingPopup() {
   // 取得ボタン動作追加
   const fetchButton = floatingDiv.querySelector('#fetchUsers');
   fetchButton.addEventListener('click', fetchUserList);
-  
+
   // 全選択ボタン動作追加
   const selectAllButton = floatingDiv.querySelector('#selectAll');
   selectAllButton.addEventListener('click', toggleSelectAll);
-  
+
   // チェックボックス動作追加
   const userListDiv = floatingDiv.querySelector('#userList');
   userListDiv.addEventListener('change', updateButtonState);
-  
+
   // 実行ボタン動作追加
   const executeButton = floatingDiv.querySelector('#executeReflection');
   executeButton.addEventListener('click', () => handleReflection('execute'));
@@ -58,7 +58,7 @@ function showFloatingPopup() {
   // 解除ボタン動作追加
   const cancelButton = floatingDiv.querySelector('#cancelReflection');
   cancelButton.addEventListener('click', () => handleReflection('cancel'));
-  
+
   // ドラッグ有効化
   makeDraggable(floatingDiv);
   // ボタンの有効無効を更新
@@ -70,7 +70,7 @@ function showFloatingPopup() {
 // ポップアップの状態を保存する
 function savePopupState() {
   if (!floatingDiv) return;
-  
+
   const state = {
     isVisible: floatingDiv.style.display !== 'none',
     position: {
@@ -176,15 +176,15 @@ function displayUserList(users) {
     checkbox.value = user.id;
     checkbox.id = `user-${user.id}`;
     checkbox.classList.add('user-checkbox');
-    
+
     const label = document.createElement('label');
     label.htmlFor = `user-${user.id}`;
     label.appendChild(document.createTextNode(user.name));
-    
+
     const div = document.createElement('div');
     div.appendChild(checkbox);
     div.appendChild(label);
-    
+
     userListDiv.appendChild(div);
   });
 
@@ -200,7 +200,7 @@ function displayUserList(users) {
 // 全選択の実行関数
 function toggleSelectAll() {
   const checkboxes = document.querySelectorAll('.user-checkbox');
-  const selectAllButton = document.getElementById('selectAll');
+  const selectAllButton = document.getElementById('selectAll')
   const isChecked = selectAllButton.textContent === '全選択';
 
   checkboxes.forEach(checkbox => {
@@ -232,50 +232,50 @@ function updateButtonState() {
 
 // 実行と解除ボタンの実行関数
 function handleReflection(action) {
-    const checkedUsers = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
-    if (checkedUsers.length === 0) {
-      alert('ユーザーが選択されていません。');
-      return;
+  const checkedUsers = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
+  if (checkedUsers.length === 0) {
+    alert('ユーザーが選択されていません。');
+    return;
+  }
+
+  const confirmMessage = action === 'execute' ? '選択されたユーザーの予実反映を実行しますか？' : '選択されたユーザーの予実反映を解除しますか？';
+  if (confirm(confirmMessage)) {
+    if (action === 'execute') {
+      executeReflectionForUsers(checkedUsers);
+    } else {
+      cancelReflectionForUsers(checkedUsers);
     }
-  
-    const confirmMessage = action === 'execute' ? '選択されたユーザーの予実反映を実行しますか？' : '選択されたユーザーの予実反映を解除しますか？';
-    if (confirm(confirmMessage)) {
-      if (action === 'execute') {
-        executeReflectionForUsers(checkedUsers);
-      } else {
-        cancelReflectionForUsers(checkedUsers);
-      }
-    }
+  }
 }
- 
+
 // 実行のロジック関数
 async function executeReflectionForUsers(userIds) {
-    // background.jsにuserIdsを渡し、全体の確定開始を通知
-    await new Promise((resolve) => {
-        chrome.runtime.sendMessage({
-          action: "startAllFixReflection",
-          userIds: userIds
-        }, resolve);
-    });
+  // background.jsにuserIdsを渡し、全体の確定開始を通知
+  await new Promise((resolve) => {
+    chrome.runtime.sendMessage({
+      action: "startAllFixReflection",
+      userIds: userIds
+    }, resolve);
+  });
 }
 
 // 全体の解除開始をbackgroundに通知する関数
 async function cancelReflectionForUsers(userIds) {
-    // background.jsにuserIdsを渡し、全体の解除開始を通知
-    await new Promise((resolve) => {
-        chrome.runtime.sendMessage({
-          action: "startAllCancelReflection",
-          userIds: userIds
-        }, resolve);
-    });
+  // background.jsにuserIdsを渡し、全体の解除開始を通知
+  await new Promise((resolve) => {
+    chrome.runtime.sendMessage({
+      action: "startAllCancelReflection",
+      userIds: userIds
+    }, resolve);
+  });
 }
 
 
 
 // 他ファイルで使う関数をexport
 export {
-    showFloatingPopup,
-    restorePopupState,
-    makeDraggable,
-    // 必要に応じて他の関数もここにリストアップ
+  showFloatingPopup,
+  restorePopupState,
+  makeDraggable,
+  // 必要に応じて他の関数もここにリストアップ
 };

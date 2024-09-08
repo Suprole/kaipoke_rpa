@@ -8,7 +8,7 @@ async function importModules() {
     import(baseUrl + 'reflectionHandler.js'),
     import(baseUrl + 'popup.js')
   ]);
-  
+
   return {
     ReflectionHandler: ReflectionHandlerModule,
     UI: UIModule
@@ -19,16 +19,16 @@ async function importModules() {
 async function main() {
   try {
     const { ReflectionHandler, UI } = await importModules();
-    
+
     // ページ読み込み時の実行関数
     await UI.restorePopupState();
     setupMessageListener();
 
-    (function() {
+    (function () {
       const originalConfirm = window.confirm;
-      window.confirm = function(message) {
-          console.log('Confirm dialog detected:', message);
-          return originalConfirm(message);
+      window.confirm = function (message) {
+        console.log('Confirm dialog detected:', message);
+        return originalConfirm(message);
       };
     })();
 
@@ -37,7 +37,7 @@ async function main() {
       chrome.runtime.onMessage.addListener(handleMessage);
     }
 
-    
+
     function handleMessage(request, sender, sendResponse) {
       const handleAction = async () => {
         try {
@@ -52,6 +52,15 @@ async function main() {
               break;
             case "clickReflectActualButton":
               result = await ReflectionHandler.clickReflectActualButton();
+              break;
+            case "clickCalculateButton":
+              result = await ReflectionHandler.clickEnableAutoEstimateButton();
+              break;
+            case "clickRezeptButton":
+              result = await ReflectionHandler.clickEnableAutoRezeptButton();
+              break;
+            case "clickCancelRezeptButton":
+              result = await ReflectionHandler.clickEnableAutoCancelRezeptButton();
               break;
             case "deleteServiceContent":
               result = await ReflectionHandler.deleteServiceContent();
@@ -79,7 +88,7 @@ async function main() {
               result = { success: true };
               break;
             // デバックゾーン
-            
+
           }
           return { success: true, result };
         } catch (error) {
@@ -87,7 +96,7 @@ async function main() {
           return { success: false, error: error.message };
         }
       };
-    
+
       handleAction().then(sendResponse).catch((error) => {
         console.error('Unhandled error in handleAction:', error);
         sendResponse({ success: false, error: 'Unhandled error occurred' });
