@@ -47,7 +47,7 @@ async function main() {
               result = await ReflectionHandler.clickCalculateButton();
               break;
             case "selectYearDeduction":
-              result = await ReflectionHandler.selectYearDeduction();
+              result = await ReflectionHandler.selectYearDeduction(request.isDeductionTarget, request.serviceContents);
               break;
             case "checkIsYearDeduction":
               result = await ReflectionHandler.checkIsYearDeduction();

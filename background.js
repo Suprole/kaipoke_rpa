@@ -26,11 +26,14 @@ async function manageFixReflection(userIds, isDeductionTarget) {
       try {
         const result = await fixProcessUser(userId, isDeductionTarget);
         progressStatus.completed++;
-        if (result.status !== 'success') {
-          errorLog.push({ userId, message: result.message });
+        if (result.resultCare && result.resultCare.status !== 'success') {
+          errorLog.push({ userId, message: result.resultCare.result.message });
+        }
+        if (result.resultMedical && result.resultMedical.status !== 'success') {
+          errorLog.push({ userId, message: result.resultMedical.result.message });
         }
       } catch (error) {
-        errorLog.push({ userId, message: error.message });
+        throw new Error(`Error for user ${userId}: ${error.message}`);
       }
       await waitForTabUpdate(currentTabId);
       await sendMessageWithRetry(currentTabId, { action: "uncheckUserCheckbox", userId: userId });
@@ -81,18 +84,22 @@ async function manageCancelReflection(userIds) {
 // 一つのuserIdに対する解除の管理関数
 async function fixProcessUser(userId, isDeductionTarget) {
   try {
-    let result = null;
-    // console.log('isDeductionTarget: ', isDeductionTarget)
+    let resultCare = null;
+    let resultMedical = null;
+    console.log('isDeductionTarget: ', isDeductionTarget)
+
 
     await new Promise(resolve => setTimeout(resolve, 100));
     // await new Promise(resolve => setTimeout(resolve, 1000));
     await waitForTabUpdate(currentTabId);
     console.log(0)
+
     
     // プルダウンからユーザーを変更する
     console.log(`Changing user to ${userId}`);
     await sendMessageWithRetry(currentTabId, { action: "changePulldownUser", userId: userId });
     console.log('User changed, waiting for page to stabilize');
+
     
     // await new Promise(resolve => setTimeout(resolve, 1000));
     // await waitForContentScript();
@@ -103,6 +110,7 @@ async function fixProcessUser(userId, isDeductionTarget) {
     // 保険区分をチェック
     const responseInsuranceCategory = await sendMessageWithRetry(currentTabId, { action: "checkInsuranceCategory" });
     console.log(responseInsuranceCategory.result);
+
     
     // 「介」以外の場合は次のユーザーへスキップ
     if (!['介', '医', '両'].includes(responseInsuranceCategory.result.result)){
@@ -115,8 +123,10 @@ async function fixProcessUser(userId, isDeductionTarget) {
     
     await waitForTabUpdate(currentTabId);
     console.log(2)
-    
-    if (['介', '両', '医'].includes(responseInsuranceCategory.result.result)){
+
+
+    // 「介」と「両」に対して行う
+    if (['介', '両'].includes(responseInsuranceCategory.result.result)){
       // 訪問内容テキストを取得
       const responseServiceContents = await sendMessageWithRetry(currentTabId, { action: "getServiceContentsAndClickAdditionButton" });
       console.log(responseServiceContents.result)
@@ -145,7 +155,7 @@ async function fixProcessUser(userId, isDeductionTarget) {
   
       } 
       else if(careServiceContents.length === 0 && medicalServiceContents.length !== 0) {
-        // 「医」のみの場合の加算処理
+        // 「医」のみの場合の加算処理（今後処理が増えたとき用）
         // 登録するボタンをクリック
         const responseClickFixAddition = await sendMessageWithRetry(currentTabId, { action: "clickFixAdditionButton" });
 
@@ -164,7 +174,7 @@ async function fixProcessUser(userId, isDeductionTarget) {
           }
         );
         console.log(222, responseSelectCareAddition.result);
-        await waitForContentScript();
+        await waitForNavigation(currentTabId);
   
       } else {
         // 両方ない場合の処理（これはなんか不具合あるからエラー吐いたほうがいいかも）
@@ -174,30 +184,28 @@ async function fixProcessUser(userId, isDeductionTarget) {
 
     
 
-
-
-    
-    // if (['介', '両'].includes(responseInsuranceCategory.result.result)) {
-    //   try {
-    //     // ボタンをクリックして予定管理に実績を反映させる
-    //     const responseClickReflectionActualButton = await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton", });
-    //     console.log(responseClickReflectionActualButton.result)
+    // 「介」「両」に対して行う
+    if (['介', '両'].includes(responseInsuranceCategory.result.result)) {
+      try {
+        // ボタンをクリックして予定管理に実績を反映させる
+        const responseClickReflectionActualButton = await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton", });
+        console.log(responseClickReflectionActualButton.result)
         
-    //     if (responseClickReflectionActualButton.result.status === 'buttonDisabled') {
-    //       await waitForTabUpdate(currentTabId);
-    //       console.log(3)
-    //     } else {
-    //       await new Promise(resolve => setTimeout(resolve, 100));
-    //       await waitForContentScript();
-    //       console.log(3)
-    //     }
+        if (responseClickReflectionActualButton.result.status === 'buttonDisabled') {
+          await waitForTabUpdate(currentTabId);
+          console.log(3)
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          await waitForNavigation(currentTabId);
+          console.log(3)
+        }
   
-    //   } catch (error) {
-    //     console.error('Error occurred while clicking cancel button:', error);
-    //     await waitForContentScript();
-    //     console.log(4)
-    //   }
-    // }
+      } catch (error) {
+        console.error('Error occurred while clicking cancel button:', error);
+        await waitForContentScript();
+        console.log(4)
+      }
+    }
 
 
     
@@ -205,9 +213,9 @@ async function fixProcessUser(userId, isDeductionTarget) {
     // リンクをクリックして予定実績管理ページへ遷移
     await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink", });
     
-    if (['介', '両'].includes(responseInsuranceCategory.result.result)){
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+    // if (['介', '両'].includes(responseInsuranceCategory.result.result)){
+    //   await new Promise(resolve => setTimeout(resolve, 1000));
+    // }
     // await waitForContentScript();
     await waitForNavigation(currentTabId);
     console.log(5)
@@ -224,110 +232,123 @@ async function fixProcessUser(userId, isDeductionTarget) {
         await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink", });
   
         // ページ遷移後の安定を待つ
-        await waitForContentScript();
-        console.log(8)  
+        await waitForNavigation(currentTabId);
+        console.log(8);  
   
   
         // 訪問内容テキストを取得
-        // const responseServiceContents = await sendMessageWithRetry(currentTabId, { action: "getServiceContentsAndClickAdditionButton" });
-        // console.log(responseServiceContents.result)
-        // const careServiceContents = responseServiceContents.result.careServiceContents;
+        const responseServiceContents = await sendMessageWithRetry(currentTabId, { action: "getServiceContentsAndClickAdditionButton" });
+        console.log(responseServiceContents.result)
+        const careServiceContents = responseServiceContents.result.careServiceContents;
         
         
-        // await new Promise(resolve => setTimeout(resolve, 500));
-        // await waitForTabUpdate(currentTabId);
-        // console.log(22);
+        // await new Promise(resolve => setTimeout(resolve, 1000));
+        await waitForTabUpdate(currentTabId);
+        console.log(22);
   
         
         // 1年減算にチェックを入れて確定
-        // const responseSelectYearDeduction = await sendMessageWithRetry(
-        //     currentTabId,
-        //     { 
-        //       action: "selectYearDeduction",
-        //       isDeductionTarget: isDeductionTarget,
-        //       serviceContents: careServiceContents
-        //     }
-        // );
+        const responseSelectYearDeduction = await sendMessageWithRetry(
+            currentTabId,
+            { 
+              action: "selectYearDeduction",
+              isDeductionTarget: isDeductionTarget,
+              serviceContents: careServiceContents
+            }
+        );
   
   
         
-        // console.log(222, responseSelectYearDeduction.result);
-        // await waitForContentScript();
+        console.log(222, responseSelectYearDeduction.result);
+        await waitForNavigation(currentTabId);
   
   
-        // try {
-        //   // ボタンをクリックして予定管理に実績を反映させる
-        //   const responseClickReflectionActualButton = await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton", });
-        //   console.log(responseClickReflectionActualButton.result)
+        try {
+          // ボタンをクリックして予定管理に実績を反映させる
+          const responseClickReflectionActualButton = await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton", });
+          console.log(responseClickReflectionActualButton.result)
           
-        //   if (responseClickReflectionActualButton.result.status === 'buttonDisabled') {
-        //     await waitForTabUpdate(currentTabId);
-        //     console.log(3)
-        //   } else {
-        //     await new Promise(resolve => setTimeout(resolve, 100));
-        //     await waitForContentScript();
-        //     console.log(3)
-        //   }
+          if (responseClickReflectionActualButton.result.status === 'buttonDisabled') {
+            await waitForTabUpdate(currentTabId);
+            console.log(3)
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await waitForContentScript();
+            console.log(3)
+          }
   
-        // } catch (error) {
-        //   console.error('Error occurred while clicking cancel button:', error);
-        //   await waitForContentScript();
-        //   console.log(4)
-        // }
+        } catch (error) {
+          console.error('Error occurred while clicking cancel button:', error);
+          await waitForContentScript();
+          console.log(4)
+        }
   
   
         // リンクをクリックして予定実績管理ページへ遷移
         await sendMessageWithRetry(currentTabId, { action: "clickPlanActualLink", });
         
         
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await waitForContentScript();
+        // await new Promise(resolve => setTimeout(resolve, 1000));
+        await waitForNavigation(currentTabId);
         console.log(5)
       }
     }
     
     
-    // if (['介', '両'].includes(responseInsuranceCategory.result.result)) {
-    //   // 実績確定ボタンをおしつつ状態を確認
-    //   const fixResult = await sendMessageWithRetry(currentTabId, { action: "clickFixActualButton", });
-    //   console.log(fixResult)
+    if (['介', '両'].includes(responseInsuranceCategory.result.result)) {
+      // 実績確定ボタンをおしつつ状態を確認
+      const fixResult = await sendMessageWithRetry(currentTabId, { action: "clickFixActualButton", });
+      console.log(fixResult)
   
   
-    //   if (fixResult.result.status === 'fixActual'){
-    //     await waitForContentScript();
-    //     console.log(6)
-    //   } else {
-    //     await waitForTabUpdate(currentTabId);
-    //     console.log(6)
-    //   }
+      if (fixResult.result.status === 'fixActual'){
+        await waitForNavigation(currentTabId);
+        console.log(6)
+      } else {
+        await waitForTabUpdate(currentTabId);
+        console.log(6)
+      }
   
-    //   //確認ログから実行結果を取得
-    //   result = await sendMessageWithRetry(currentTabId, { action: "fetchFixResult" });
-    //   console.log(result.result)
+      //確認ログから実行結果を取得
+      resultCare = await sendMessageWithRetry(currentTabId, { action: "fetchFixResult" });
+      console.log(resultCare.result)
       
-    //   await waitForTabUpdate(currentTabId);
-    //   console.log(7)
-    // }
+      await waitForTabUpdate(currentTabId);
+      console.log(7)
+    }
 
-    if (['医'].includes(responseInsuranceCategory.result.result)) {
+    if (['医', '両'].includes(responseInsuranceCategory.result.result)) {
       // 算定ボタンをおす
       const calculateResult = await sendMessageWithRetry(currentTabId, { action: "clickCalculateButton", });
       console.log(calculateResult.result)
 
-      // await new Promise(resolve => setTimeout(resolve, 1000));
-      await waitForNavigation(currentTabId);
-      console.log(9)
+      if(calculateResult.result.status === 'clicked'){
+        // await new Promise(resolve => setTimeout(resolve, 1000));
+        await waitForNavigation(currentTabId);
+        console.log(9)
+      }else{
+        await waitForTabUpdate(currentTabId);
+        console.log(9)
+      }
       
+      
+      // await new Promise(resolve => setTimeout(resolve, 100));
       // レセプト作成ボタンをおす
       const makeReceiptResult = await sendMessageWithRetry(currentTabId, { action: "clickMakeReceiptButton", });
       console.log(makeReceiptResult.result)
   
-      await waitForNavigation(currentTabId);
-      console.log(10)
+      if(makeReceiptResult.result.status === 'cilcked'){
+        // await new Promise(resolve => setTimeout(resolve, 1000));
+        await waitForNavigation(currentTabId);
+        console.log(9)
+      }else{
+        await waitForTabUpdate(currentTabId);
+        console.log(9)
+      }
   
       //確認ログから実行結果を取得
-      result = await sendMessageWithRetry(currentTabId, { action: "fetchFixResult" });
-      console.log(result.result)
+      resultMedical = await sendMessageWithRetry(currentTabId, { action: "fetchFixResult" });
+      console.log(resultMedical.result)
       
       await waitForTabUpdate(currentTabId);
       console.log(11)
@@ -339,11 +360,11 @@ async function fixProcessUser(userId, isDeductionTarget) {
     await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink", });
 
     // ページ遷移後の安定を待つ
-    await waitForContentScript();
+    await waitForNavigation(currentTabId);
     console.log(12)    
 
 
-    return result.result;
+    return {resultCare: resultCare, resultMedical: resultMedical};
 
   } catch (error) {
     console.error(`Error processing user ${userId}:`, error);
@@ -377,85 +398,85 @@ async function cancelProcessUser(userId) {
     
     // 「介」以外の場合は次のユーザーへスキップ
     if (!['介', '両', '医'].includes(responseInsuranceCategory.result.result)){
-      console.log('介護保険適用者ではありません。次のユーザーへスキップします。');
+      console.log('保険適用者ではありません。次のユーザーへスキップします。');
       return;
     }
 
-    // 全ての加算チェックボックスを削除
-    // 訪問内容テキストを取得
-    const responseServiceContents = await sendMessageWithRetry(currentTabId, { action: "getServiceContentsAndClickAdditionButton" });
-    console.log(responseServiceContents.result)
-    const careServiceContents = responseServiceContents.result.careServiceContents;
-    const medicalServiceContents = responseServiceContents.result.medicalServiceContents;
+    // // 全ての加算チェックボックスを削除
+    // // 訪問内容テキストを取得
+    // const responseServiceContents = await sendMessageWithRetry(currentTabId, { action: "getServiceContentsAndClickAdditionButton" });
+    // console.log(responseServiceContents.result)
+    // const careServiceContents = responseServiceContents.result.careServiceContents;
+    // const medicalServiceContents = responseServiceContents.result.medicalServiceContents;
     
     
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await waitForTabUpdate(currentTabId);
-    console.log(22);
+    // await new Promise(resolve => setTimeout(resolve, 1000));
+    // await waitForTabUpdate(currentTabId);
+    // console.log(22);
     
-    // 加算処理
-    if (careServiceContents.length !== 0 && medicalServiceContents.length === 0) {
-      // 「介」のみの場合の加算処理
-      // 全てのチェックボックスを外す
-      const responseRemoveAdditionCheckbox = await sendMessageWithRetry( currentTabId, { action: "removeAdditionCheckbox" });
+    // // 加算処理
+    // if (careServiceContents.length !== 0 && medicalServiceContents.length === 0) {
+    //   // 「介」のみの場合の加算処理
+    //   // 全てのチェックボックスを外す
+    //   // const responseRemoveAdditionCheckbox = await sendMessageWithRetry( currentTabId, { action: "removeAdditionCheckbox" });
       
-      console.log(222, responseRemoveAdditionCheckbox.result);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await waitForTabUpdate(currentTabId);
+    //   // console.log(222, responseRemoveAdditionCheckbox.result);
+    //   // await new Promise(resolve => setTimeout(resolve, 500));
+    //   // await waitForTabUpdate(currentTabId);
 
-      // 登録するボタンをクリック
-      const responseClickFixAddition = await sendMessageWithRetry(currentTabId, { action: "clickFixAdditionButton" });
+    //   // 登録するボタンをクリック
+    //   const responseClickFixAddition = await sendMessageWithRetry(currentTabId, { action: "clickFixAdditionButton" });
 
-      console.log(2222, responseClickFixAddition.result);
-      await waitForNavigation(currentTabId);
+    //   console.log(2222, responseClickFixAddition.result);
+    //   await waitForNavigation(currentTabId);
 
-    } else if(careServiceContents.length === 0 && medicalServiceContents.length !== 0) {
-      // 「医」のみの場合の加算処理
-      // 登録するボタンをクリック
-      const responseClickFixAddition = await sendMessageWithRetry(currentTabId, { action: "clickFixAdditionButton" });
+    // } else if(careServiceContents.length === 0 && medicalServiceContents.length !== 0) {
+    //   // 「医」のみの場合の加算処理
+    //   // 登録するボタンをクリック
+    //   const responseClickFixAddition = await sendMessageWithRetry(currentTabId, { action: "clickFixAdditionButton" });
 
-      console.log(2222, responseClickFixAddition.result);
-      await waitForNavigation(currentTabId);
+    //   console.log(2222, responseClickFixAddition.result);
+    //   await waitForNavigation(currentTabId);
 
-    } else if(careServiceContents.length !== 0 && medicalServiceContents.length !== 0) {
-      // 「介」「医」両方ある場合の加算処理
-       // 全てのチェックボックスを外す
-      const responseRemoveAdditionCheckbox = await sendMessageWithRetry( currentTabId, { action: "removeAdditionCheckbox" });
+    // } else if(careServiceContents.length !== 0 && medicalServiceContents.length !== 0) {
+    //   // 「介」「医」両方ある場合の加算処理
+    //    // 全てのチェックボックスを外す
+    //   // const responseRemoveAdditionCheckbox = await sendMessageWithRetry( currentTabId, { action: "removeAdditionCheckbox" });
 
-      console.log(222, responseRemoveAdditionCheckbox.result);
-      await waitForTabUpdate(currentTabId);
+    //   // console.log(222, responseRemoveAdditionCheckbox.result);
+    //   // await waitForTabUpdate(currentTabId);
 
-      // 登録するボタンをクリック
-      const responseClickFixAddition = await sendMessageWithRetry(currentTabId, { action: "clickFixAdditionButton" });
+    //   // 登録するボタンをクリック
+    //   const responseClickFixAddition = await sendMessageWithRetry(currentTabId, { action: "clickFixAdditionButton" });
 
-      console.log(222, responseClickFixAddition.result);
-      await waitForNavigation(currentTabId);
-    } else {
-      // 両方ない場合の処理（これはなんか不具合あるからエラー吐いたほうがいいかも）
-    }
+    //   console.log(222, responseClickFixAddition.result);
+    //   await waitForNavigation(currentTabId);
+    // } else {
+    //   // 両方ない場合の処理（これはなんか不具合あるからエラー吐いたほうがいいかも）
+    // }
 
 
-    if (['介', '両'].includes(responseInsuranceCategory.result.result)) {
-      try {
-        // ボタンをクリックして予定管理に実績を反映させる
-        const responseClickReflectionActualButton = await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton", });
-        console.log(responseClickReflectionActualButton.result)
+    // if (['介', '両'].includes(responseInsuranceCategory.result.result)) {
+    //   try {
+    //     // ボタンをクリックして予定管理に実績を反映させる
+    //     const responseClickReflectionActualButton = await sendMessageWithRetry(currentTabId, { action: "clickReflectActualButton", });
+    //     console.log(responseClickReflectionActualButton.result)
         
-        if (responseClickReflectionActualButton.result.status === 'buttonDisabled') {
-          await waitForTabUpdate(currentTabId);
-          console.log(3)
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          await waitForContentScript();
-          console.log(3)
-        }
+    //     if (responseClickReflectionActualButton.result.status === 'buttonDisabled') {
+    //       await waitForTabUpdate(currentTabId);
+    //       console.log(3)
+    //     } else {
+    //       await new Promise(resolve => setTimeout(resolve, 100));
+    //       await waitForNavigation(currentTabId);
+    //       console.log(3)
+    //     }
   
-      } catch (error) {
-        console.error('Error occurred while clicking cancel button:', error);
-        await waitForContentScript();
-        console.log(4)
-      }
-    }
+    //   } catch (error) {
+    //     console.error('Error occurred while clicking cancel button:', error);
+    //     await waitForContentScript();
+    //     console.log(4)
+    //   }
+    // }
 
 
     // リンクをクリックして予定実績管理ページへ遷移
@@ -469,50 +490,50 @@ async function cancelProcessUser(userId) {
 
 
     if (['介', '両'].includes(responseInsuranceCategory.result.result)){
-      // // 実績管理ページの実績が完全になくなるまで以下を繰り返す
-      // console.log(`Attempting to click cancel Actual Button`);
-      // let cancelStatus = '';
+      // 実績管理ページの実績が完全になくなるまで以下を繰り返す
+      console.log(`Attempting to click cancel Actual Button`);
+      let cancelStatus = '';
   
-      // while (cancelStatus !== 'notExistActual') {
-      //   try {
-      //     await waitForTabUpdate(currentTabId);
-      //     console.log(3)    
+      while (cancelStatus !== 'notExistActual') {
+        try {
+          await waitForTabUpdate(currentTabId);
+          console.log(3)    
   
-      //     // 実績ボタンを解除しつつ状態を確認
-      //     const cancelResult = await sendMessageWithRetry(currentTabId, { action: "clickCancelActualButton" });
-      //     console.log(5, cancelResult)
+          // 実績ボタンを解除しつつ状態を確認
+          const cancelResult = await sendMessageWithRetry(currentTabId, { action: "clickCancelActualButton" });
+          console.log(5, cancelResult)
           
-      //     if(cancelResult.result.status === 'canceldActual'){
-      //       await waitForContentScript();
-      //       console.log(4)    
-      //     } else {
-      //       await waitForTabUpdate(currentTabId);
-      //       console.log(4)
-      //     }
+          if(cancelResult.result.status === 'canceldActual'){
+            await waitForContentScript();
+            console.log(4)    
+          } else {
+            await waitForTabUpdate(currentTabId);
+            console.log(4)
+          }
   
-      //     // 解除の進行状況を保存
-      //     cancelStatus = cancelResult.result.status;
-      //     console.log(6, cancelStatus)
-      //     console.log(`Cancel status: ${cancelStatus}, Message: ${cancelResult.result.message}`);
+          // 解除の進行状況を保存
+          cancelStatus = cancelResult.result.status;
+          console.log(6, cancelStatus)
+          console.log(`Cancel status: ${cancelStatus}, Message: ${cancelResult.result.message}`);
           
-      //     // 全ての実績がない状態になればwhileをbreak
-      //     if (cancelStatus === 'notExistActual') {
-      //       break;
-      //     }
+          // 全ての実績がない状態になればwhileをbreak
+          if (cancelStatus === 'notExistActual') {
+            break;
+          }
           
-      //     // サービス内容の削除処理
-      //     console.log(`delete Service Contents`);
-      //     await sendMessageWithRetry(currentTabId, { action: "deleteServiceContent", });
+          // サービス内容の削除処理
+          console.log(`delete Service Contents`);
+          await sendMessageWithRetry(currentTabId, { action: "deleteServiceContent", });
           
-      //     await waitForContentScript();
-      //     console.log(5)
+          await waitForContentScript();
+          console.log(5)
   
   
-      //   } catch (error) {
-      //     console.error('Error occurred while clicking cancel button:', error);
-      //     await new Promise(resolve => setTimeout(resolve, 1000));
-      //   }
-      // }
+        } catch (error) {
+          console.error('Error occurred while clicking cancel button:', error);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
     }
 
     if (['医', '両'].includes(responseInsuranceCategory.result.result)){
@@ -520,18 +541,23 @@ async function cancelProcessUser(userId) {
       const deleteReceiptResult = await sendMessageWithRetry(currentTabId, { action: "clickDeleteReceiptButton", });
       console.log(deleteReceiptResult.result)
   
-      await waitForNavigation(currentTabId);
-      console.log(10)
+      if (deleteReceiptResult.result.status === 'clicked'){
+        await waitForNavigation(currentTabId);
+        console.log(10)
+      } else{
+        await waitForTabUpdate(currentTabId);
+        console.log(10)
+      }
     }
 
 
-    // // リンクをクリックして月間スケジュール管理ページへ遷移
-    // console.log(`navigate to monthly schedule page`);
-    // await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink", });
-    // console.log('waiting for page to stabilize');
+    // リンクをクリックして月間スケジュール管理ページへ遷移
+    console.log(`navigate to monthly schedule page`);
+    await sendMessageWithRetry(currentTabId, { action: "clickMonthlyScheduleLink", });
+    console.log('waiting for page to stabilize');
 
-    // await waitForContentScript();
-    // console.log(6)
+    await waitForContentScript();
+    console.log(6)
 
 
   } catch (error) {

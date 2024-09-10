@@ -45,6 +45,10 @@ async function waitForElementAll(selector, maxAttempts = MAX_ATTEMPTS) {
 
 // ユーティリティ関数: str配列のうち、検索文字列を含むindexを返す関数
 const findIndicesMatchingAny = (arr, searchStrings) => {
+    if (!arr || !Array.isArray(arr)) {
+      console.error('Input array is invalid');
+      return [];
+    }
     // Set を使用して重複を自動的に除去
     const matchingIndices = new Set();
   
@@ -91,7 +95,7 @@ async function clickDeleteReceiptButton() {
       button.click();
       return { status: 'clicked', message: 'レセプト削除ボタンを正常にクリックしました。' };
   } catch (error) {
-      return { status: 'failed', message: 'レセプト削除ボタンが押せませんでした。' };
+      return { status: 'failed', message: 'レセプトはまだ作成されていません。' };
   }
 }
 
@@ -99,9 +103,15 @@ async function clickDeleteReceiptButton() {
 // １年減算を登録する関数
 async function selectYearDeduction(isDeductionTarget, serviceContents) {
     try {
+        if (!serviceContents || !Array.isArray(serviceContents)) {
+          console.error('serviceContents is undefined or not an array');
+          return { status: 'error', message: 'serviceContents is invalid' };
+        }
+
         const searchStrings = ["予訪看Ⅰ５"];
         // 減算対象の訪問を取得
         const indices = findIndicesMatchingAny(serviceContents, searchStrings)
+        console.log(indices)
 
         // リハビリ減算対象の場合は以下を行う
         if (isDeductionTarget) {
@@ -319,7 +329,7 @@ async function fetchFixResult() {
             const text = liElement.textContent;
             return { 
                 status: 'failed',
-                message: text
+                message: text+'\n'
             };
         }
         
@@ -332,7 +342,7 @@ async function fetchFixResult() {
             const text = resultMessageDiv.textContent;
             return { 
                 status: 'success',
-                message: text
+                message: text+'\n'
             };
         }
 

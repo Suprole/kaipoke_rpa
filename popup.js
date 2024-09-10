@@ -271,7 +271,7 @@ function updateStatus() {
   
       errorLogElement.innerHTML = 'エラーログ:';
       errorLog.forEach(error => {
-        errorLogElement.innerHTML += `<br>${getUserNameById(error.userId)}: ${error.message}`;
+        errorLogElement.innerHTML += `<br>${getUserNameById(error.userId)}<br>${error.message}<br>`;
       });
     });
 }
